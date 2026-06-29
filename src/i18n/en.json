@@ -10,17 +10,7 @@
 		"skills": "Skills",
 		"blog": "blog",
 		"contact": "Contact",
-		"jobs": "Jobs",
 		"faq": "FAQ"
-	},
-	"jobs": {
-		"title": "Jobs",
-		"description": "Posted jobs from multiple sources",
-		"count": "jobs",
-		"empty": "No jobs posted yet.",
-		"prev": "Previous",
-		"next": "Next",
-		"page": "Page"
 	},
 	"hero": {
 		"firstName": "Dawood",

@@ -66,9 +66,6 @@
 	"migrations": [
 		{ "tag": "v1", "new_sqlite_classes": ["EmDashMCP"] }
 	],
-	"vars": {
-		"JOBS_API_URL": "https://yemen-hr-worker.engdawood.workers.dev"
-	},
 	"services": [
 		{ "binding": "SELF", "service": "dawood-emdash" }
 	],
