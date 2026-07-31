@@ -44,3 +44,4 @@ temp/*
 **/_archive/**
 .claude\worktrees
 backup_temp
+rss-publish-issues.md

@@ -64,29 +64,35 @@ Auth: `?token=<ec_pat_*>` query param OR `Authorization: Bearer <token>` header.
 
 ### Plugins
 
-All plugins are configured in `astro.config.mjs`. Plugin sandboxing is handled by `@emdash-cms/cloudflare/sandbox` (`PluginBridge` exported from `worker.ts`).
+All plugins are configured in `astro.config.mjs`. A plugin's type is set by its descriptor's `format` field:
 
-**Native plugins** (run in-process, declared in `plugins: []`):
+- **`format: "native"`** — imported into the main Worker, runs in-process, unrestricted. Declared in `plugins: []`.
+- **`format: "standard"`** — sandboxed. Its `entrypoint` is loaded as a separate isolate via the Cloudflare **Worker Loader** binding (`LOADER`, declared in both wrangler configs), with `capabilities` + `allowedHosts` mediating access. Declared in `sandboxed: []`, dispatched by `sandbox()` from `@emdash-cms/cloudflare` (`sandboxRunner`).
+
+**Native plugins** (`plugins: []`):
 
 | Plugin | Source | Notes |
 |--------|--------|-------|
+| `marketing-blocks` inline descriptor | `src/plugins/marketing-blocks/` (local) | Hero, features, testimonials, pricing, FAQ blocks |
 | `formsPlugin()` | `@emdash-cms/plugin-forms` | Contact form submissions |
 | `colorPlugin()` | `@emdash-cms/plugin-color` | Color picker field widget |
 | `embedsPlugin()` | `@emdash-cms/plugin-embeds` | YouTube, Vimeo, Bluesky, Mastodon, Twitter, Gist blocks |
 | `calloutPlugin()` | `@plugdash/callout` | Info/warning/tip callout blocks |
+| `custom-blocks` inline descriptor | `@emdash.directory/plugin-custom-blocks` | Reusable HTML snippets. Package ships a `standard` descriptor too, but we wire the `/sandbox` entrypoint as `native` for full features |
 | SEO inline descriptor | `src/plugins/seo/` (copied from `@jdevalk/emdash-plugin-seo`) | Meta, OG, JSON-LD, IndexNow, llms.txt |
-| `aiModerationPlugin()` | `@emdash-cms/plugin-ai-moderation` | AI comment moderation (requires `AI` binding) |
-| `email-cf-provider` | `src/plugins/email-cf-worker.ts` | Email transport via Cloudflare Email |
 | `rssAggregatorPlugin()` | `src/plugins/rss-aggregator/` (local) | RSS/Atom feed aggregator; uses EmDash plugin storage (no extra D1 needed) |
+| `aiModerationPlugin()` | `@emdash-cms/plugin-ai-moderation` | AI comment moderation (requires `AI` binding) |
+| `emdash-inbox` inline descriptor | `src/plugins/emdash-inbox/` (local) | Email inbox + transport (`email:provide`, `email:intercept`, email-transport/email-events hooks) |
 
-**Sandboxed plugins** (isolated workers, declared in `sandboxed: []`):
+**Sandboxed plugins** (`sandboxed: []`):
 
 | Plugin | Package | Notes |
 |--------|---------|-------|
-| `webhookNotifier` | `@emdash-cms/plugin-webhook-notifier` | Dev-only (excluded from production) |
-| `auditLog` | `@emdash-cms/plugin-audit-log` | Content change audit trail |
-| `atproto` | `@emdash-cms/plugin-atproto` | Bluesky syndication on publish |
-| `customBlocksPlugin()` | `@emdash.directory/plugin-custom-blocks` | Reusable HTML snippets |
+| `webhookNotifier` | `@emdash-cms/plugin-webhook-notifier` | Dev-only — excluded from production via `process.env.NODE_ENV !== "production"`. The **only** sandboxed plugin; in prod the array is empty |
+
+**Installed but not registered:** `@emdash-cms/plugin-audit-log` and `@emdash-cms/plugin-atproto` are still in `package.json` but are **not** wired into `astro.config.mjs`. Both are `format: "standard"` with a `content:read` capability, which meant every page render dispatched into a Worker-Loader isolate — the cause of the ~18s SSR stall and hung admin. Do not re-add them to `sandboxed: []` without re-testing render latency.
+
+**Orphaned:** `src/plugins/email-cf-worker.ts` is no longer referenced; email transport now comes from `emdash-inbox`.
 
 **Local plugins with type stubs:** `src/plugins/rss-aggregator/src/types/` contains `declare module "..."` stubs for peer deps. These shadow the real package types when the root `tsconfig.json` includes `**/*`. Always exclude such stub directories in the root `tsconfig.json`: `"exclude": ["dist", "src/plugins/rss-aggregator/src/types"]`.
 
@@ -139,7 +145,7 @@ See @CLAUDE.CLOUDFLARE.md for the dual-config setup, sandbox plugin behavior, an
 ## Patches
 
 One package is patched via `pnpm patch`:
-- `emdash@0.17.2` — `patches/emdash@0.17.2.patch`
+- `emdash@0.31.1` — `patches/emdash@0.31.1.patch`
 
 Declared in `package.json` under `pnpm.patchedDependencies`. Applied automatically after `pnpm install`. If you upgrade emdash, re-apply or update the patch against the new version.
 
