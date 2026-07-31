@@ -1,5 +1,6 @@
 ---
 import { t, type Locale } from "../../i18n/utils";
+import BrandIcon from "../BrandIcon.astro";
 
 interface Props {
 	locale: Locale;
@@ -7,6 +8,17 @@ interface Props {
 }
 
 const { locale, email } = Astro.props;
+
+const tickerItems: { label: string; brand?: string }[] = [
+	{ label: "MCP Server Live", brand: "mcp" },
+	{ label: "Arabic Research" },
+	{ label: "4,127,301 Records Indexed" },
+	{ label: "Node.js", brand: "node.js" },
+	{ label: "TypeScript", brand: "typescript" },
+	{ label: "Cloudflare Workers", brand: "cloudflare workers" },
+	{ label: "Hono", brand: "hono" },
+	{ label: "Open to Work" },
+];
 ---
 
 <section id="hero" class="hero">
@@ -56,7 +68,7 @@ const { locale, email } = Astro.props;
 				<div class="hero-stack-list">
 					{t("hero.stack", locale).split(" · ").map((s: string) => (
 						<div class="stack-item">
-							<span class="stack-bullet">✦</span>
+							<BrandIcon name={s} class="stack-logo" />
 							<span>{s}</span>
 						</div>
 					))}
@@ -72,8 +84,14 @@ const { locale, email } = Astro.props;
 	<div class="hero-ticker">
 		<div class:list={["ticker-track", { "ticker-rtl": locale === "ar" }]}>
 			{[0, 1, 2].map(() => (
-				<span class="ticker-item">
-					MCP SERVER LIVE · ARABIC RESEARCH · 4,127,301 RECORDS INDEXED · NODE.JS · TYPESCRIPT · CLOUDFLARE WORKERS · HONO · OPEN TO WORK ·&nbsp;
+				<span class="ticker-group" dir="ltr">
+					{tickerItems.map((item) => (
+						<span class="ticker-item">
+							{item.brand && <BrandIcon name={item.brand} class="ticker-logo" />}
+							<span>{item.label}</span>
+							<span class="ticker-sep">·</span>
+						</span>
+					))}
 				</span>
 			))}
 		</div>
@@ -286,17 +304,14 @@ const { locale, email } = Astro.props;
 	}
 
 	.stack-item {
+		--brand-icon-size: 14px;
+		--brand-icon-color: var(--color-accent);
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		font-family: var(--font-serif);
 		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
-	}
-
-	.stack-bullet {
-		color: var(--color-accent);
-		font-size: 8px;
 	}
 
 	.hero-metrics {
@@ -338,6 +353,7 @@ const { locale, email } = Astro.props;
 
 	.ticker-track {
 		display: flex;
+		width: max-content;
 		white-space: nowrap;
 		animation: ticker 28s linear infinite;
 	}
@@ -355,14 +371,28 @@ const { locale, email } = Astro.props;
 		to { transform: translateX(-33.333%); }
 	}
 
+	.ticker-group {
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+	}
+
 	.ticker-item {
+		--brand-icon-size: 13px;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
 		font-family: var(--font-mono);
 		font-size: 10px;
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: var(--color-on-accent);
 		opacity: 0.9;
-		padding-right: var(--spacing-8);
+		padding-right: var(--spacing-6);
+	}
+
+	.ticker-sep {
+		opacity: 0.5;
 	}
 
 	/* ── Responsive ── */

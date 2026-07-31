@@ -21,7 +21,7 @@
     "@atproto/api": "^0.13.35",
     "@dawod/emdash-rss-aggregator": "link:./src/plugins/rss-aggregator",
     "@emdash-cms/auth-atproto": "^0.2.13",
-    "@emdash-cms/cloudflare": "0.17.2",
+    "@emdash-cms/cloudflare": "0.31.1",
     "@emdash-cms/plugin-ai-moderation": "^0.2.0",
     "@emdash-cms/plugin-atproto": "^0.2.0",
     "@emdash-cms/plugin-audit-log": "^0.2.0",
@@ -41,7 +41,7 @@
     "agents": "^0.11.0",
     "astro": "^6.1.2",
     "dompurify": "^3.4.11",
-    "emdash": "0.17.2",
+    "emdash": "0.31.1",
     "mimetext": "^3.0.28",
     "postal-mime": "^2.7.4",
     "react": "^19.2.4",
@@ -74,9 +74,9 @@
       "@tiptap/starter-kit": "3.22.3"
     },
     "patchedDependencies": {
-      "emdash@0.17.2": "patches/emdash@0.17.2.patch",
       "@rollup/pluginutils": "patches/@rollup__pluginutils.patch",
-      "@astrojs/internal-helpers@0.10.0": "patches/@astrojs__internal-helpers@0.10.0.patch"
+      "@astrojs/internal-helpers@0.10.0": "patches/@astrojs__internal-helpers@0.10.0.patch",
+      "emdash@0.31.1": "patches/emdash@0.31.1.patch"
     }
   }
 }
