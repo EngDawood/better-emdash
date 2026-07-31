@@ -1,14 +1,66 @@
 ---
-import { t, type Locale } from "../i18n/utils";
+import type { Menu } from "emdash";
+import { t, locales, type Locale } from "../i18n/utils";
 import LiveSearch from "emdash/ui/search";
 import LanguageSwitcher from "./LanguageSwitcher.astro";
 
 interface Props {
 	locale: Locale;
 	isLoggedIn: boolean;
+	/** EmDash "primary" menu. Falls back to hardcoded links when absent or empty. */
+	menu?: Menu | null;
 }
 
-const { locale, isLoggedIn } = Astro.props;
+const { locale, isLoggedIn, menu } = Astro.props;
+
+interface NavLink {
+	href: string;
+	label: string;
+	target?: string;
+	titleAttr?: string;
+	cssClasses?: string;
+}
+
+const fallbackLinks: NavLink[] = [
+	{ href: `/${locale}/work`, label: t("nav.projects", locale) },
+	{ href: `/${locale}/blog`, label: t("nav.blog", locale) },
+	{ href: `/${locale}#about`, label: t("nav.about", locale) },
+	{ href: `/${locale}#contact`, label: t("nav.contact", locale) },
+];
+
+/**
+ * EmDash resolves menu URLs without a locale prefix (`/work`), which redirects
+ * to the default locale — so an English visitor would land on Arabic pages.
+ * Re-point internal links at the locale being rendered.
+ */
+function localizeMenuHref(href: string): string {
+	// External, protocol-relative, mailto/tel and bare anchors pass through
+	if (!href.startsWith("/") || href.startsWith("//")) return href;
+
+	const [beforeHash, ...hashRest] = href.split("#");
+	const hash = hashRest.length ? `#${hashRest.join("#")}` : "";
+	const [path, query] = beforeHash.split("?");
+	const segments = path.split("/").filter(Boolean);
+
+	if (segments.length && locales.includes(segments[0] as Locale)) {
+		segments[0] = locale;
+	} else {
+		segments.unshift(locale);
+	}
+
+	return `/${segments.join("/")}${query ? `?${query}` : ""}${hash}`;
+}
+
+// Top level only — the nav has no dropdown UI, so child items are ignored.
+const navLinks: NavLink[] = menu?.items?.length
+	? menu.items.map((item) => ({
+			href: localizeMenuHref(item.url),
+			label: item.label,
+			target: item.target,
+			titleAttr: item.titleAttr,
+			cssClasses: item.cssClasses,
+		}))
+	: fallbackLinks;
 ---
 
 <header class="site-header">
@@ -26,11 +78,17 @@ const { locale, isLoggedIn } = Astro.props;
 		</a>
 		<div class="nav-right">
 			<div class="nav-links">
-				<a href={`/${locale}/work`}>{t("nav.projects", locale)}</a>
-				<a href={`/${locale}/blog`}>{t("nav.blog", locale)}</a>
-				<a href={`/${locale}#about`}>{t("nav.about", locale)}</a>
-				<a href={`/${locale}#contact`}>{t("nav.contact", locale)}</a>
-				{!isLoggedIn && <a href={`/${locale}/signup`}>{t("signup.title", locale)}</a>}
+				{navLinks.map((link) => (
+					<a
+						href={link.href}
+						class={link.cssClasses}
+						target={link.target}
+						rel={link.target === "_blank" ? "noopener" : undefined}
+						title={link.titleAttr}
+					>
+						{link.label}
+					</a>
+				))}
 			</div>
 			<LiveSearch
 				placeholder={t("search.placeholder", locale)}

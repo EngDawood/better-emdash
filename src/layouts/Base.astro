@@ -1,6 +1,6 @@
 ---
 import { Font } from "astro:assets";
-import { getSiteSettings, getEmDashCollection, getWidgetArea } from "emdash";
+import { getSiteSettings, getEmDashCollection, getWidgetArea, getMenu } from "emdash";
 import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
 import { createPublicPageContext } from "emdash/page";
 import Header from "../components/Header.astro";
@@ -42,10 +42,12 @@ const {
 // Determine locale from prop or URL
 const locale: Locale = localeProp || getLocaleFromPath(Astro.url.pathname) || defaultLocale;
 const dir = getDir(locale);
-const [settings, { entries: pages }, newsletterFooterArea] = await Promise.all([
+const [settings, { entries: pages }, newsletterFooterArea, primaryMenu] = await Promise.all([
 	getSiteSettings(),
 	getEmDashCollection("pages", { limit: 2 }),
 	getWidgetArea("newsletter-footer"),
+	// Header falls back to its hardcoded links when this is null
+	getMenu("primary", { locale }).catch(() => null),
 ]);
 const siteTitle = settings?.title || "Studio";
 const siteDescription = settings?.tagline || "Design & Development";
@@ -155,6 +157,7 @@ const articleSchema =
 		<Header
 			locale={locale}
 			isLoggedIn={isLoggedIn}
+			menu={primaryMenu}
 		/>
 
 		<main>
