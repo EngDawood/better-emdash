@@ -17,6 +17,15 @@ interface Env extends Cloudflare.Env {
 
 const UPSTREAM_PATH = "/_emdash/api/mcp";
 
+/** Path of this endpoint's OAuth protected-resource metadata (RFC 9728 path insertion). */
+export const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource/mcp";
+
+/** How long a merged tools/list stays in the edge cache. Tool definitions only change on deploy. */
+const TOOLS_CACHE_TTL_S = 3600;
+
+// `caches.default` is a Cloudflare Workers runtime API not present on the DOM `CacheStorage` type.
+const edgeCache = (caches as unknown as { default: Cache }).default;
+
 interface JsonRpcRequest {
 	jsonrpc: "2.0";
 	id?: string | number;
@@ -51,9 +60,59 @@ const INBOX_TOOL_NAMES = new Set([
 	"mark_done",
 ]);
 
+// Mirrors EmDash's own VALID_SCOPES — kept in sync with the built-in authorization server.
+const SUPPORTED_SCOPES = [
+	"content:read",
+	"content:write",
+	"media:read",
+	"media:write",
+	"schema:read",
+	"schema:write",
+	"taxonomies:manage",
+	"menus:manage",
+	"settings:read",
+	"settings:manage",
+	"mcp:tools",
+	"admin",
+];
+
+/**
+ * OAuth protected-resource metadata for `/mcp` (RFC 9728).
+ *
+ * EmDash serves `/.well-known/oauth-protected-resource` for its own built-in
+ * endpoint, declaring `resource: <origin>/_emdash/api/mcp`. That identifier does
+ * not match this proxy's URL, so clients discovering auth for `/mcp` reject it.
+ * This route advertises `/mcp` as its own resource, delegating to the same
+ * EmDash authorization server.
+ */
+export function handleProtectedResourceMetadata(request: Request): Response {
+	if (request.method === "OPTIONS") {
+		return new Response(null, { headers: CORS_HEADERS });
+	}
+
+	const { origin } = new URL(request.url);
+	return Response.json(
+		{
+			resource: `${origin}/mcp`,
+			authorization_servers: [`${origin}/_emdash`],
+			scopes_supported: SUPPORTED_SCOPES,
+			bearer_methods_supported: ["header"],
+		},
+		{ headers: { ...CORS_HEADERS, "Cache-Control": "public, max-age=3600" } },
+	);
+}
+
+/** Stable, non-reversible cache-key fragment so tool lists never leak across tokens. */
+async function tokenFingerprint(token: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+	return Array.from(new Uint8Array(digest).slice(0, 16))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
+
 // ── Proxy handler ────────────────────────────────────────────────────────────
 
-export async function handleMcp(request: Request, env: Env): Promise<Response> {
+export async function handleMcp(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const url = new URL(request.url);
 
 	if (request.method === "OPTIONS") {
@@ -66,7 +125,12 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
 	if (!token) {
 		return new Response("Unauthorized", {
 			status: 401,
-			headers: { ...CORS_HEADERS, "WWW-Authenticate": "Bearer" },
+			headers: {
+				...CORS_HEADERS,
+				// Point clients straight at this endpoint's own metadata, so they never
+				// fall back to EmDash's origin-level document (which names a different resource).
+				"WWW-Authenticate": `Bearer resource_metadata="${url.origin}${RESOURCE_METADATA_PATH}"`,
+			},
 		});
 	}
 
@@ -107,51 +171,76 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
 
 	// tools/list — merge upstream tools and inbox plugin tools
 	if (rpc.method === "tools/list") {
-		let upstreamTools: unknown[] = [];
-		try {
-			const res = await upstreamFetch({ method: "POST", headers: upstreamHeaders, body: JSON.stringify(rpc) });
-			const upstreamData = await parseSseOrJson(res);
-			upstreamTools = (upstreamData.result?.tools as unknown[]) ?? [];
-		} catch {
-			// upstream unavailable
+		// Each source below is a Service Binding subrequest that re-enters this Worker
+		// and boots a full Astro SSR pass (several seconds each). Serving from cache
+		// keeps the handshake well inside MCP client timeouts.
+		const cacheKey = new Request(`${url.origin}/__mcp-tools-cache/${await tokenFingerprint(token)}`);
+		const cached = await edgeCache.match(cacheKey);
+		if (cached) {
+			const tools = await cached.json();
+			return Response.json({ jsonrpc: "2.0", id: rpc.id, result: { tools } }, { headers: CORS_HEADERS });
 		}
 
-		let inboxTools: unknown[] = [];
-		try {
-			const inboxRes = await env.SELF.fetch(new Request(`${baseUrl}/_emdash/api/plugins/emdash-inbox/messages/mcp`, {
-				method: "POST",
-				headers: upstreamHeaders,
-				body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-			}));
-			if (inboxRes.ok) {
-				const inboxData = (await inboxRes.json()) as any;
-				inboxTools = inboxData.result?.tools ?? [];
-			}
-		} catch (e) {
-			console.error("Failed to fetch inbox plugin tools:", e);
+		// Fetch all three sources concurrently — they are independent.
+		const [upstreamTools, inboxTools, rssTools] = await Promise.all([
+			(async (): Promise<unknown[]> => {
+				try {
+					const res = await upstreamFetch({ method: "POST", headers: upstreamHeaders, body: JSON.stringify(rpc) });
+					const upstreamData = await parseSseOrJson(res);
+					return (upstreamData.result?.tools as unknown[]) ?? [];
+				} catch {
+					// upstream unavailable
+					return [];
+				}
+			})(),
+			(async (): Promise<unknown[]> => {
+				try {
+					const inboxRes = await env.SELF.fetch(new Request(`${baseUrl}/_emdash/api/plugins/emdash-inbox/messages/mcp`, {
+						method: "POST",
+						headers: upstreamHeaders,
+						body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+					}));
+					if (!inboxRes.ok) return [];
+					const inboxData = (await inboxRes.json()) as any;
+					return inboxData.result?.tools ?? [];
+				} catch (e) {
+					console.error("Failed to fetch inbox plugin tools:", e);
+					return [];
+				}
+			})(),
+			// RSS Aggregator plugin tools. The plugin route returns a JSON-RPC
+			// envelope wrapped by the plugin API layer as `{ data: <envelope> }`.
+			(async (): Promise<unknown[]> => {
+				try {
+					const rssRes = await env.SELF.fetch(new Request(rssMcpUrl, {
+						method: "POST",
+						headers: upstreamHeaders,
+						body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+					}));
+					if (!rssRes.ok) return [];
+					const rssData = (await rssRes.json()) as any;
+					return rssData.data?.result?.tools ?? rssData.result?.tools ?? [];
+				} catch (e) {
+					console.error("Failed to fetch rss-aggregator plugin tools:", e);
+					return [];
+				}
+			})(),
+		]);
+
+		const tools = [...upstreamTools, ...inboxTools, ...rssTools];
+
+		// Only cache a list that actually has the built-in tools — never pin a
+		// degraded result from a transient upstream failure.
+		if (upstreamTools.length > 0) {
+			const toStore = Response.json(tools, {
+				headers: { "Cache-Control": `public, s-maxage=${TOOLS_CACHE_TTL_S}` },
+			});
+			const put = edgeCache.put(cacheKey, toStore).catch((e) => console.error("tools/list cache put failed:", e));
+			if (ctx) ctx.waitUntil(put);
+			else await put;
 		}
 
-		// RSS Aggregator plugin tools. The plugin route returns a JSON-RPC
-		// envelope wrapped by the plugin API layer as `{ data: <envelope> }`.
-		let rssTools: unknown[] = [];
-		try {
-			const rssRes = await env.SELF.fetch(new Request(rssMcpUrl, {
-				method: "POST",
-				headers: upstreamHeaders,
-				body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-			}));
-			if (rssRes.ok) {
-				const rssData = (await rssRes.json()) as any;
-				rssTools = rssData.data?.result?.tools ?? rssData.result?.tools ?? [];
-			}
-		} catch (e) {
-			console.error("Failed to fetch rss-aggregator plugin tools:", e);
-		}
-
-		return Response.json(
-			{ jsonrpc: "2.0", id: rpc.id, result: { tools: [...upstreamTools, ...inboxTools, ...rssTools] } },
-			{ headers: CORS_HEADERS },
-		);
+		return Response.json({ jsonrpc: "2.0", id: rpc.id, result: { tools } }, { headers: CORS_HEADERS });
 	}
 
 	// tools/call for inbox plugin tools

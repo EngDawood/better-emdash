@@ -1,5 +1,5 @@
 import handler from "@astrojs/cloudflare/entrypoints/server";
-import { EmDashMCP, handleMcp } from "./mcp";
+import { EmDashMCP, handleMcp, handleProtectedResourceMetadata, RESOURCE_METADATA_PATH } from "./mcp";
 
 interface WorkerEnv extends Cloudflare.Env {
 	MCP_OBJECT: DurableObjectNamespace<EmDashMCP>;
@@ -39,7 +39,11 @@ export default {
 		const url = new URL(request.url);
 
 		if (url.pathname === "/mcp") {
-			return handleMcp(request, env);
+			return handleMcp(request, env, ctx);
+		}
+
+		if (url.pathname === RESOURCE_METADATA_PATH) {
+			return handleProtectedResourceMetadata(request);
 		}
 
 		// Only cache GET requests from unauthenticated users
