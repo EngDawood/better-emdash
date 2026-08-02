@@ -12,7 +12,7 @@ const locale = getLocaleFromPath(Astro.url.pathname);
 		<p>{t("notFound.subtitle", locale)}</p>
 		<div class="not-found-links">
 			<a href={`/${locale}`} class="link-primary">{t("notFound.goHome", locale)}</a>
-			<a href={`/${locale}/work`} class="link-secondary">{t("notFound.viewWork", locale)}</a>
+			<a href={`/${locale}/projects`} class="link-secondary">{t("notFound.viewWork", locale)}</a>
 		</div>
 	</div>
 </Base>

@@ -1,4 +1,4 @@
 ---
-// Redirect to default locale
-return Astro.redirect("/ar/work", 302);
+// Legacy route — redirect to the default locale's projects listing
+return Astro.redirect(`/ar/projects${Astro.url.search}`, 301);
 ---

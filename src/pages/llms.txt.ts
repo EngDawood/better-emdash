@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ url }) => {
 
 	const sections: Record<string, LlmsTxtEntry[]> = {
 		Writing: posts.map((p) => entry(p.data.title, `/blog/${p.data.slug || p.id}`, p.data.excerpt)),
-		Work: projects.map((p) => entry(p.data.title, `/work/${p.data.slug || p.id}`, p.data.summary)),
+		Work: projects.map((p) => entry(p.data.title, `/projects/${p.data.slug || p.id}`, p.data.summary)),
 		Pages: pages.map((p) => entry(p.data.title, `/pages/${p.data.slug || p.id}`)),
 	};
 

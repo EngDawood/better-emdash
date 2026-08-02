@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ site, url }) => {
 	};
 
 	const feedItems: FeedItem[] = [
-		...projects.map((p) => toItem(`${siteUrl}/work/${p.data.slug || p.id}`, p.data.title, p.data.summary, p.data.publishedAt)),
+		...projects.map((p) => toItem(`${siteUrl}/projects/${p.data.slug || p.id}`, p.data.title, p.data.summary, p.data.publishedAt)),
 		...posts.map((p) => toItem(`${siteUrl}/blog/${p.data.slug || p.id}`, p.data.title, p.data.excerpt, p.data.publishedAt)),
 	]
 		.filter((item): item is FeedItem => item !== null)

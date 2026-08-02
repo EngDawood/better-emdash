@@ -22,14 +22,14 @@ interface NavLink {
 }
 
 const fallbackLinks: NavLink[] = [
-	{ href: `/${locale}/work`, label: t("nav.projects", locale) },
+	{ href: `/${locale}/projects`, label: t("nav.projects", locale) },
 	{ href: `/${locale}/blog`, label: t("nav.blog", locale) },
 	{ href: `/${locale}#about`, label: t("nav.about", locale) },
 	{ href: `/${locale}#contact`, label: t("nav.contact", locale) },
 ];
 
 /**
- * EmDash resolves menu URLs without a locale prefix (`/work`), which redirects
+ * EmDash resolves menu URLs without a locale prefix (`/projects`), which redirects
  * to the default locale — so an English visitor would land on Arabic pages.
  * Re-point internal links at the locale being rendered.
  */
