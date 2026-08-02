@@ -1,0 +1,262 @@
+---
+export const prerender = false;
+
+import {
+	getEmDashCollection,
+	getTaxonomyTerms,
+	getTermsForEntries,
+} from "emdash";
+import Base from "../../../layouts/Base.astro";
+import ProjectCard from "../../../components/ProjectCard.astro";
+import { t, locales, type Locale, defaultLocale } from "../../../i18n/utils";
+
+// Validate locale
+const { locale: localeParam } = Astro.params;
+const locale: Locale = locales.includes(localeParam as Locale)
+	? (localeParam as Locale)
+	: defaultLocale;
+
+if (!locales.includes(localeParam as Locale)) {
+	return Astro.redirect(`/${defaultLocale}/projects`, 302);
+}
+
+const { entries: projects, cacheHint } =
+	await getEmDashCollection("projects");
+const tags = await getTaxonomyTerms("tag");
+
+// Get filter from query param
+const activeTag = Astro.url.searchParams.get("tag");
+
+const projectTagsMap = await getTermsForEntries("projects", projects.map(p => p.data.id), "tag");
+const projectsWithTags = projects.map(project => ({
+	project,
+	projectTags: projectTagsMap.get(project.data.id) ?? [],
+}));
+
+// Filter projects if a tag is selected
+const filteredProjects = activeTag
+	? projectsWithTags.filter(({ projectTags }) =>
+			projectTags.some((t) => t.slug === activeTag)
+		)
+	: projectsWithTags;
+
+// Sort by published date
+const sortedProjects = filteredProjects.toSorted((a, b) => {
+	const dateA = a.project.data.publishedAt?.getTime() ?? 0;
+	const dateB = b.project.data.publishedAt?.getTime() ?? 0;
+	return dateB - dateA;
+});
+
+Astro.cache.set(cacheHint);
+---
+
+<Base
+	title={activeTag
+		? `${tags.find((t) => t.slug === activeTag)?.label || activeTag} — ${t("nav.projects", locale)}`
+		: t("nav.projects", locale)}
+	locale={locale}
+>
+	<section class="work-header">
+		<div class="work-header-top">
+			<h1>{t("projects.heading", locale)}</h1>
+			<a href="/rss/projects.xml" class="rss-link" title={t("footer.rss", locale)} aria-label={t("footer.rss", locale)}>
+				<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+					<path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19.01 7.38 20 6.18 20C4.98 20 4 19.01 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27V4.44m0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93V10.1z"/>
+				</svg>
+			</a>
+		</div>
+		<p class="work-intro">
+			{locale === "ar"
+				? "مجموعة مختارة من المشاريع في مجالات البرمجة والأنظمة الخلفية والذكاء الاصطناعي."
+				: "A selection of projects spanning backend systems, AI tooling, and serverless infrastructure."}
+		</p>
+
+		{
+			tags.length > 0 && (
+				<nav class="tag-filters" aria-label="Filter by tag">
+					{tags.map((tag) => (
+						<a
+							href={`/${locale}/projects?tag=${tag.slug}`}
+							class:list={["tag-filter", { active: activeTag === tag.slug }]}
+						>
+							{tag.label}
+						</a>
+					))}
+					{activeTag && (
+						<a href={`/${locale}/projects`} class="tag-clear" aria-label="Clear filter">
+							{locale === "ar" ? "مسح" : "Clear"}
+						</a>
+					)}
+				</nav>
+			)
+		}
+	</section>
+
+	{
+		sortedProjects.length > 0 ? (
+			<section class="projects">
+				<div class="projects-grid">
+					{sortedProjects.map(({ project, projectTags }) => (
+						<ProjectCard
+							title={project.data.title ?? "Untitled"}
+							summary={project.data.summary}
+							featuredImage={project.data.featured_image ?? ""}
+							href={`/${locale}/projects/${project.id}`}
+							client={project.data.client}
+							year={project.data.year}
+							tags={projectTags.map((t) => t.label)}
+						/>
+					))}
+				</div>
+			</section>
+		) : (
+			<section class="empty-state">
+				{activeTag ? (
+					<>
+						<p>{locale === "ar" ? "لا توجد مشاريع بهذا التصنيف." : "No projects found with this tag."}</p>
+						<a href={`/${locale}/projects`} class="btn">
+							{locale === "ar" ? "عرض كل المشاريع" : "View all projects"}
+						</a>
+					</>
+				) : (
+					<>
+						<p>{locale === "ar" ? "لا توجد مشاريع بعد." : "No projects yet. Add your first project in the admin panel."}</p>
+						<a href="/_emdash/admin/content/projects/new" class="btn">
+							{locale === "ar" ? "أضف مشروع" : "Add a project"}
+						</a>
+					</>
+				)}
+			</section>
+		)
+	}
+</Base>
+
+<style>
+	.work-header {
+		max-width: var(--wide-width);
+		margin: 0 auto;
+		padding: var(--spacing-3xl) var(--spacing-lg) var(--spacing-2xl);
+	}
+
+	.work-header-top {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		margin-bottom: var(--spacing-md);
+	}
+
+	.work-header-top h1 {
+		font-size: var(--font-size-3xl);
+		margin-bottom: 0;
+	}
+
+	.rss-link {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-muted);
+		transition: color var(--transition-fast);
+	}
+
+	.rss-link:hover {
+		color: var(--color-accent);
+	}
+
+	.rss-link svg {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.work-intro {
+		font-size: var(--font-size-lg);
+		color: var(--color-muted);
+		max-width: 600px;
+	}
+
+	.tag-filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-sm);
+		margin-top: var(--spacing-xl);
+	}
+
+	.tag-filter {
+		display: inline-block;
+		padding: var(--spacing-xs) var(--spacing-md);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+		text-decoration: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		transition:
+			color var(--transition-fast),
+			border-color var(--transition-fast),
+			background var(--transition-fast);
+	}
+
+	.tag-filter:hover {
+		color: var(--color-text);
+		border-color: var(--color-text);
+	}
+
+	.tag-filter.active {
+		color: var(--color-bg);
+		background: var(--color-text);
+		border-color: var(--color-text);
+	}
+
+	.tag-clear {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-xs);
+		padding: var(--spacing-xs) var(--spacing-md);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+		text-decoration: none;
+		transition: color var(--transition-fast);
+	}
+
+	.tag-clear:hover {
+		color: var(--color-text);
+	}
+
+	.tag-clear::before {
+		content: "×";
+		font-size: 1.1em;
+	}
+
+	.projects {
+		max-width: var(--wide-width);
+		margin: 0 auto;
+		padding: 0 var(--spacing-lg) var(--spacing-4xl);
+	}
+
+	.projects-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--spacing-2xl);
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: var(--spacing-4xl) var(--spacing-lg);
+		color: var(--color-muted);
+	}
+
+	.btn {
+		display: inline-block;
+		margin-top: var(--spacing-lg);
+		padding: var(--spacing-sm) var(--spacing-lg);
+		background: var(--color-text);
+		color: var(--color-bg);
+		text-decoration: none;
+		border-radius: var(--radius);
+		font-size: var(--font-size-sm);
+	}
+
+	@media (max-width: 768px) {
+		.projects-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

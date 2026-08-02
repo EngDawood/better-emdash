@@ -21,7 +21,7 @@ const { featuredProjects, locale } = Astro.props;
 		</div>
 		<div class="project-rows">
 			{featuredProjects.map((project, i) => (
-				<a href={`/${locale}/work/${project.id}`} class="project-row reveal-item" style={`--delay: ${i}`}>
+				<a href={`/${locale}/projects/${project.id}`} class="project-row reveal-item" style={`--delay: ${i}`}>
 					<div class="row-meta">
 						<span class="row-num">0{i + 1}</span>
 						<span class="row-year">{project.data.year}</span>
@@ -34,7 +34,7 @@ const { featuredProjects, locale } = Astro.props;
 				</a>
 			))}
 		</div>
-		<a href={`/${locale}/work`} class="view-all reveal-child">{t("projects.viewAll", locale)} →</a>
+		<a href={`/${locale}/projects`} class="view-all reveal-child">{t("projects.viewAll", locale)} →</a>
 	</div>
 </section>
 

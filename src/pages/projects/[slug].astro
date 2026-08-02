@@ -1,0 +1,5 @@
+---
+// Redirect to default locale
+const { slug } = Astro.params;
+return Astro.redirect(`/ar/projects/${slug}`, 302);
+---
