@@ -69,9 +69,13 @@ const pageCtx = createPublicPageContext({
 	siteName: siteTitle,
 });
 
-// hreflang: strip locale prefix then build per-locale hrefs
+// hreflang: strip locale prefix then build per-locale hrefs.
+// The Arabic homepage is served unprefixed at `/` — `/ar` 301s there.
 const pathWithoutLocale = Astro.url.pathname.replace(/^\/(ar|en)/, "") || "/";
-const hrefAr = `${Astro.url.origin}/ar${pathWithoutLocale === "/" ? "" : pathWithoutLocale}`;
+const hrefAr =
+	pathWithoutLocale === "/"
+		? `${Astro.url.origin}/`
+		: `${Astro.url.origin}/ar${pathWithoutLocale}`;
 const hrefEn = `${Astro.url.origin}/en${pathWithoutLocale === "/" ? "" : pathWithoutLocale}`;
 
 // JSON-LD

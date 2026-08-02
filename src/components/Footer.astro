@@ -1,5 +1,5 @@
 ---
-import { t, type Locale } from "../i18n/utils";
+import { t, homePath, type Locale } from "../i18n/utils";
 
 interface Props {
 	locale: Locale;
@@ -14,7 +14,7 @@ const { locale, siteTitle, pages } = Astro.props;
 	<div class="footer-inner">
 		<div class="footer-grid">
 			<div class="footer-brand">
-				<a href={`/${locale}`} class="footer-logo-wrap" dir="ltr">
+				<a href={homePath(locale)} class="footer-logo-wrap" dir="ltr">
 					<svg width="52" height="40" viewBox="0 0 52 40" class="footer-logo-mark" aria-hidden="true">
 						<text x="0" y="35" font-family="'Playfair Display', serif" font-size="46" font-weight="400" fill="var(--color-text)" letter-spacing="-0.06em">D</text>
 						<text x="19" y="35" font-family="'Playfair Display', serif" font-size="46" font-weight="400" font-style="italic" fill="var(--color-accent)" letter-spacing="-0.06em">s</text>
@@ -29,7 +29,7 @@ const { locale, siteTitle, pages } = Astro.props;
 			<div class="footer-nav">
 				<h4 class="footer-heading">{t("footer.nav", locale)}</h4>
 				<ul class="footer-links">
-					<li><a href={`/${locale}`}>{t("nav.home", locale)}</a></li>
+					<li><a href={homePath(locale)}>{t("nav.home", locale)}</a></li>
 					<li><a href={`/${locale}/projects`}>{t("nav.projects", locale)}</a></li>
 					<li><a href={`/${locale}/blog`}>{t("nav.blog", locale)}</a></li>
 					{
@@ -46,7 +46,7 @@ const { locale, siteTitle, pages } = Astro.props;
 			<div class="footer-nav">
 				<h4 class="footer-heading">{t("footer.connect", locale)}</h4>
 				<ul class="footer-links">
-					<li><a href={`/${locale}#contact`}>{t("nav.contact", locale)}</a></li>
+					<li><a href={`${homePath(locale)}#contact`}>{t("nav.contact", locale)}</a></li>
 					<li><a href="/rss.xml">{t("footer.rss", locale)}</a></li>
 				</ul>
 			</div>

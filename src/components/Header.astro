@@ -1,6 +1,6 @@
 ---
 import type { Menu } from "emdash";
-import { t, locales, type Locale } from "../i18n/utils";
+import { t, locales, homePath, type Locale } from "../i18n/utils";
 import LiveSearch from "emdash/ui/search";
 import LanguageSwitcher from "./LanguageSwitcher.astro";
 
@@ -24,8 +24,8 @@ interface NavLink {
 const fallbackLinks: NavLink[] = [
 	{ href: `/${locale}/projects`, label: t("nav.projects", locale) },
 	{ href: `/${locale}/blog`, label: t("nav.blog", locale) },
-	{ href: `/${locale}#about`, label: t("nav.about", locale) },
-	{ href: `/${locale}#contact`, label: t("nav.contact", locale) },
+	{ href: `${homePath(locale)}#about`, label: t("nav.about", locale) },
+	{ href: `${homePath(locale)}#contact`, label: t("nav.contact", locale) },
 ];
 
 /**
@@ -48,7 +48,11 @@ function localizeMenuHref(href: string): string {
 		segments.unshift(locale);
 	}
 
-	return `/${segments.join("/")}${query ? `?${query}` : ""}${hash}`;
+	// The default locale homepage is served unprefixed at `/`
+	const localizedPath =
+		segments.length === 1 && segments[0] === locale ? homePath(locale) : `/${segments.join("/")}`;
+
+	return `${localizedPath}${query ? `?${query}` : ""}${hash}`;
 }
 
 // Top level only — the nav has no dropdown UI, so child items are ignored.
@@ -65,7 +69,7 @@ const navLinks: NavLink[] = menu?.items?.length
 
 <header class="site-header">
 	<nav class="nav">
-		<a href={`/${locale}`} class="site-logo" dir="ltr" aria-label="Home">
+		<a href={homePath(locale)} class="site-logo" dir="ltr" aria-label="Home">
 			<svg width="44" height="34" viewBox="0 0 44 34" class="logo-mark" aria-hidden="true">
 				<text x="0" y="30" font-family="'Playfair Display', serif" font-size="40" font-weight="400" fill="var(--color-text)" letter-spacing="-0.06em">D</text>
 				<text x="17" y="30" font-family="'Playfair Display', serif" font-size="40" font-weight="400" font-style="italic" fill="var(--color-accent)" letter-spacing="-0.06em">s</text>

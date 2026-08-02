@@ -1,129 +1,21 @@
 ---
-import { getEmDashCollection, getEmDashEntry, getSiteSettings } from "emdash";
-import Base from "../../layouts/Base.astro";
-import { t, locales, type Locale, defaultLocale } from "../../i18n/utils";
-import HeroSection from "../../components/sections/HeroSection.astro";
-import WorkSection from "../../components/sections/WorkSection.astro";
-import WritingSection from "../../components/sections/WritingSection.astro";
-import AboutSection from "../../components/sections/AboutSection.astro";
-import ContactSection from "../../components/sections/ContactSection.astro";
-import FaqTeaserSection from "../../components/sections/FaqTeaserSection.astro";
-import ScrollReveal from "../../components/ScrollReveal.astro";
+import HomePage from "../../components/HomePage.astro";
+import { locales, type Locale, defaultLocale } from "../../i18n/utils";
 
 // In server mode, validate locale from params
 const { locale: localeParam } = Astro.params;
-const locale: Locale = locales.includes(localeParam as Locale)
-	? (localeParam as Locale)
-	: defaultLocale;
 
 // Redirect if invalid locale
 if (!locales.includes(localeParam as Locale)) {
-	return Astro.redirect(`/${defaultLocale}/`, 302);
+	return Astro.redirect("/", 302);
 }
 
-const [settings, { entries: projects, cacheHint }, { entries: posts }, { entry: faqPage, cacheHint: faqCacheHint }] = await Promise.all([
-	getSiteSettings(),
-	getEmDashCollection("projects", { orderBy: { published_at: "desc" }, limit: 3 }),
-	getEmDashCollection("posts", { orderBy: { published_at: "desc" }, limit: 4 }),
-	getEmDashEntry("pages", "faq", { locale }),
-]);
-Astro.cache.set(cacheHint);
-Astro.cache.set(faqCacheHint);
-
-// Pull the FAQ items out of the marketing.faq block for the homepage teaser
-const faqBlock = faqPage?.data.content?.find(
-	(block: { _type: string }) => block._type === "marketing.faq",
-) as { items?: { question: string; answer: string }[] } | undefined;
-const faqItems: { question: string; answer: string }[] = faqBlock?.items ?? [];
-
-// Projects and posts are already sorted and limited by the query
-const featuredProjects = projects;
-const recentPosts = posts;
-
-const email = "eng.dawoodsaleh@gmail.com";
-const telegram = "https://t.me/Daw5d";
-const github = settings.social?.github ?? "https://github.com/EngDawood";
-const linkedin = settings.social?.linkedin ?? "https://www.linkedin.com/in/dawood3";
-const twitter = settings.social?.twitter ?? "https://x.com/dawo5d";
-
-// Contact form state
-let formStatus: "idle" | "success" | "error" = "idle";
-let formMessage = "";
-
-if (Astro.request.method === "POST") {
-	try {
-		const formData = await Astro.request.formData();
-		const name = formData.get("name")?.toString() || "";
-		const emailVal = formData.get("email")?.toString() || "";
-		const message = formData.get("message")?.toString() || "";
-
-		if (!name || !emailVal || !message) {
-			formStatus = "error";
-			formMessage = t("contact.form.error", locale);
-		} else if (!emailVal.includes("@")) {
-			formStatus = "error";
-			formMessage = t("contact.form.error", locale);
-		} else {
-			const res = await fetch(new URL("/_emdash/api/plugins/emdash-forms/submit", Astro.url), {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					formId: "contact",
-					data: { name, email: emailVal, message },
-				}),
-			});
-			const result = await res.json() as { success: boolean; message?: string };
-			if (!result.success) throw new Error(result.message || "Submission failed");
-			formStatus = "success";
-			formMessage = result.message || t("contact.form.success", locale);
-		}
-	} catch {
-		formStatus = "error";
-		formMessage = t("contact.form.error", locale);
-	}
+// The default locale homepage lives unprefixed at `/`
+if (localeParam === defaultLocale) {
+	return Astro.redirect("/", 301);
 }
+
+const locale = localeParam as Locale;
 ---
 
-<Base
-	title={t("meta.title", locale)}
-	description={t("meta.description", locale)}
-	locale={locale}
->
-	<HeroSection
-		locale={locale}
-		email={email}
-	/>
-
-	<WorkSection
-		featuredProjects={featuredProjects}
-		locale={locale}
-	/>
-
-	<WritingSection
-		recentPosts={recentPosts}
-		locale={locale}
-	/>
-
-	<AboutSection
-		locale={locale}
-		email={email}
-	/>
-
-	<ContactSection
-		locale={locale}
-		email={email}
-		github={github}
-		linkedin={linkedin}
-		telegram={telegram}
-		twitter={twitter}
-		formStatus={formStatus}
-		formMessage={formMessage}
-	/>
-
-	<FaqTeaserSection
-		faqItems={faqItems}
-		locale={locale}
-	/>
-
-	<ScrollReveal />
-</Base>
+<HomePage locale={locale} />

@@ -1,5 +1,5 @@
 ---
-import { getOtherLocale, stripLocale, type Locale } from "../i18n/utils";
+import { getOtherLocale, stripLocale, homePath, type Locale } from "../i18n/utils";
 
 interface Props {
 	locale: Locale;
@@ -9,7 +9,8 @@ interface Props {
 const { locale, class: className } = Astro.props;
 const otherLocale = getOtherLocale(locale);
 const currentPath = stripLocale(Astro.url.pathname);
-const switchUrl = `/${otherLocale}${currentPath === "/" ? "" : currentPath}`;
+const switchUrl =
+	currentPath === "/" ? homePath(otherLocale) : `/${otherLocale}${currentPath}`;
 const label = locale === "ar" ? "EN" : "عربي";
 ---
 

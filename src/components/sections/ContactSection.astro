@@ -1,5 +1,5 @@
 ---
-import { t, type Locale } from "../../i18n/utils";
+import { t, homePath, type Locale } from "../../i18n/utils";
 
 interface Props {
 	locale: Locale;
@@ -59,7 +59,7 @@ const { locale, email, github, linkedin, telegram, twitter, formStatus, formMess
 				{formStatus === "success" ? (
 					<div class="form-success">
 						<p>{formMessage}</p>
-						<a href={`/${locale}#contact`} class="btn btn-ghost">{t("contact.cta", locale)}</a>
+						<a href={`${homePath(locale)}#contact`} class="btn btn-ghost">{t("contact.cta", locale)}</a>
 					</div>
 				) : (
 					<form method="POST" class="contact-form">

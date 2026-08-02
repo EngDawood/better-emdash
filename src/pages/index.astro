@@ -1,4 +1,8 @@
 ---
-// Redirect to default locale (Arabic)
-return Astro.redirect("/ar/", 301);
+// Default locale (Arabic) homepage, served unprefixed at `/`.
+// `/ar/` 301-redirects here — see src/pages/[locale]/index.astro.
+import HomePage from "../components/HomePage.astro";
+import { defaultLocale } from "../i18n/utils";
 ---
+
+<HomePage locale={defaultLocale} />

@@ -76,6 +76,14 @@ export function localizedPath(path: string, locale: Locale): string {
 }
 
 /**
+ * Homepage path for a locale. The default locale's homepage is served
+ * unprefixed at `/` — `/ar` 301-redirects there.
+ */
+export function homePath(locale: Locale): string {
+	return locale === defaultLocale ? "/" : `/${locale}`;
+}
+
+/**
  * Get the path without locale prefix
  */
 export function stripLocale(path: string): string {

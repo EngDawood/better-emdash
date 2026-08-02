@@ -3,14 +3,21 @@ import { getEmDashCollection } from "emdash";
 
 const LOCALES = ["ar", "en"] as const;
 
+// The Arabic homepage is served unprefixed at `/` — `/ar` 301s there, so it
+// must never appear in the sitemap.
+function localeUrl(origin: string, locale: string, basePath: string): string {
+	if (locale === "ar" && basePath === "") return `${origin}/`;
+	return `${origin}/${locale}${basePath}`;
+}
+
 function urlEntry(origin: string, locale: string, basePath: string, lastmod?: string): string {
 	// basePath is locale-agnostic (e.g. "/blog/slug" or "" for home); the
 	// locale prefix is added here so the loc and every hreflang alternate are
 	// each prefixed exactly once.
-	const loc = `${origin}/${locale}${basePath}`;
+	const loc = localeUrl(origin, locale, basePath);
 	const alternates = LOCALES.map(
 		(lang) =>
-			`    <xhtml:link rel="alternate" hreflang="${lang}" href="${origin}/${lang}${basePath}"/>`
+			`    <xhtml:link rel="alternate" hreflang="${lang}" href="${localeUrl(origin, lang, basePath)}"/>`
 	).join("\n");
 	return [
 		"  <url>",
