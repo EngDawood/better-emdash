@@ -334,6 +334,14 @@ const tickerItems: { label: string; brand?: string }[] = [
 		font-weight: 500;
 		color: var(--color-text);
 		line-height: 1;
+		/* Keep "4M+" intact — the neutral + flips ahead of the digits in RTL */
+		direction: ltr;
+		unicode-bidi: isolate;
+	}
+
+	/* direction: ltr above also resets text-align, so restore the RTL edge */
+	html[dir="rtl"] .metric b {
+		text-align: right;
 	}
 
 	.metric span {
