@@ -10,7 +10,9 @@
 		"skills": "Skills",
 		"blog": "blog",
 		"contact": "Contact",
-		"faq": "FAQ"
+		"faq": "FAQ",
+		"login": "Login",
+		"admin": "Admin"
 	},
 	"hero": {
 		"firstName": "Dawood",
@@ -25,7 +27,7 @@
 		"metrics": {
 			"records": "research records",
 			"platforms": "platforms",
-			"years": "experience"
+			"years": "years experience"
 		}
 	},
 	"writing": {

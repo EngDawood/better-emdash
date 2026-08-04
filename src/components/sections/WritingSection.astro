@@ -46,7 +46,7 @@ const { recentPosts, locale } = Astro.props;
 				</div>
 			</div>
 		)}
-		<a href={`/${locale}/blog`} class="view-all reveal-child">{t("writing.viewAll", locale)} →</a>
+		<a href={`/${locale}/blog`} class="view-all reveal-child">{t("writing.viewAll", locale)} {locale === "ar" ? "←" : "→"}</a>
 	</div>
 </section>
 

@@ -316,13 +316,6 @@ html[dir="rtl"] h4 {
 	letter-spacing: 0;
 }
 
-/* Flip flex direction for RTL */
-html[dir="rtl"] .nav,
-html[dir="rtl"] .nav-right,
-html[dir="rtl"] .nav-links {
-	flex-direction: row-reverse;
-}
-
 html[dir="rtl"] .nav-links a,
 html[dir="rtl"] .nav-admin,
 html[dir="rtl"] .footer-links a,
@@ -397,6 +390,9 @@ h3 {
 .kicker-num {
 	color: var(--color-accent);
 	font-weight: 400;
+	/* Keep "§01" intact — the neutral § flips ahead of the digits in RTL */
+	direction: ltr;
+	unicode-bidi: isolate;
 }
 
 .kicker-rule {

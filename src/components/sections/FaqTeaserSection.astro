@@ -29,7 +29,7 @@ const { faqItems, locale } = Astro.props;
 					</details>
 				))}
 			</div>
-			<a href={`/${locale}/faq`} class="view-all reveal-child">{t("faq.viewAll", locale)} →</a>
+			<a href={`/${locale}/faq`} class="view-all reveal-child">{t("faq.viewAll", locale)} {locale === "ar" ? "←" : "→"}</a>
 		</div>
 	</section>
 )}

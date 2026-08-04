@@ -26,15 +26,15 @@ const { featuredProjects, locale } = Astro.props;
 						<span class="row-num">0{i + 1}</span>
 						<span class="row-year">{project.data.year}</span>
 					</div>
-					<h3 class="row-title">{project.data.title}</h3>
-					<p class="row-desc">{project.data.summary}</p>
+					<h3 class="row-title" dir="auto">{project.data.title}</h3>
+					<p class="row-desc" dir="auto">{project.data.summary}</p>
 					<div class="row-footer">
-						<span class="row-arrow">→</span>
+						<span class="row-arrow">{locale === "ar" ? "←" : "→"}</span>
 					</div>
 				</a>
 			))}
 		</div>
-		<a href={`/${locale}/projects`} class="view-all reveal-child">{t("projects.viewAll", locale)} →</a>
+		<a href={`/${locale}/projects`} class="view-all reveal-child">{t("projects.viewAll", locale)} {locale === "ar" ? "←" : "→"}</a>
 	</div>
 </section>
 
