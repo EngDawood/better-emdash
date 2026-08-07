@@ -1,0 +1,300 @@
+---
+/**
+ * Jobs listing, rendered from the `jobs-board` plugin's public route.
+ *
+ * The route is dispatched in-process through `Astro.locals.emdash` rather
+ * than fetched over HTTP, so rendering never makes a same-Worker subrequest.
+ */
+import { getPublicPluginApiRouteHandler } from "emdash/plugin-utils";
+import { t, type Locale } from "../i18n/utils";
+
+interface Props {
+	locale: Locale;
+	page: number;
+	/** Path this listing lives at, used to build pagination links. */
+	basePath: string;
+}
+
+interface JobRow {
+	id: string;
+	title: string;
+	company: string | null;
+	location: string | null;
+	summary: string | null;
+	summaryAr: string | null;
+	sourceUrl: string | null;
+	telegraphUrl: string | null;
+	source: string;
+	postedAt: string;
+	deadline: string | null;
+}
+
+interface JobsMeta {
+	page: number;
+	limit: number;
+	total: number;
+	totalPages: number;
+}
+
+const { locale, page, basePath } = Astro.props;
+
+let jobs: JobRow[] = [];
+let meta: JobsMeta = { page, limit: 20, total: 0, totalPages: 1 };
+
+const dispatch = getPublicPluginApiRouteHandler(Astro.locals);
+
+if (dispatch) {
+	const routeUrl = new URL("/_emdash/api/plugins/jobs-board/public/jobs", Astro.url);
+	routeUrl.searchParams.set("page", String(page));
+
+	const result = await dispatch(
+		"jobs-board",
+		"GET",
+		"/public/jobs",
+		new Request(routeUrl),
+	);
+
+	if (result.success && result.data) {
+		const data = result.data as { items?: JobRow[]; meta?: JobsMeta };
+		jobs = data.items ?? [];
+		if (data.meta) meta = data.meta;
+	}
+}
+
+const jobHref = (job: JobRow) => job.telegraphUrl ?? job.sourceUrl ?? "#";
+
+const jobSummary = (job: JobRow) =>
+	locale === "ar" ? (job.summaryAr ?? job.summary) : job.summary;
+
+const formatDate = (value: string | null) =>
+	value
+		? new Date(value).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US", {
+				year: "numeric",
+				month: "long",
+				day: "numeric",
+			})
+		: null;
+
+const pageHref = (target: number) =>
+	target <= 1 ? basePath : `${basePath}?page=${target}`;
+---
+
+<div class="jobs-page">
+	<header class="page-header">
+		<h1 class="page-title">{t("jobs.title", locale)}</h1>
+		<p class="page-description">
+			{meta.total}
+			{t("jobs.count", locale)}
+		</p>
+	</header>
+
+	{
+		jobs.length === 0 ? (
+			<p class="empty">{t("jobs.empty", locale)}</p>
+		) : (
+			<div class="jobs-list">
+				{jobs.map((job) => (
+					<article class="job-item">
+						<a
+							href={jobHref(job)}
+							class="job-link"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<div class="job-meta">
+								<span class="job-source">{job.source}</span>
+								{job.location && (
+									<>
+										<span class="meta-dot" />
+										<span>{job.location}</span>
+									</>
+								)}
+								{job.deadline && (
+									<>
+										<span class="meta-dot" />
+										<time>{formatDate(job.deadline)}</time>
+									</>
+								)}
+							</div>
+							<h2 class="job-title">{job.title}</h2>
+							{job.company && <p class="job-company">{job.company}</p>}
+							{jobSummary(job) && <p class="job-summary">{jobSummary(job)}</p>}
+						</a>
+					</article>
+				))}
+			</div>
+		)
+	}
+
+	{
+		meta.totalPages > 1 && (
+			<nav class="pagination">
+				{meta.page > 1 && (
+					<a href={pageHref(meta.page - 1)} class="pagination-link">
+						{t("jobs.prev", locale)}
+					</a>
+				)}
+				<span class="pagination-info">
+					{t("jobs.page", locale)} {meta.page} / {meta.totalPages}
+				</span>
+				{meta.page < meta.totalPages && (
+					<a href={pageHref(meta.page + 1)} class="pagination-link">
+						{t("jobs.next", locale)}
+					</a>
+				)}
+			</nav>
+		)
+	}
+</div>
+
+<style>
+	.jobs-page {
+		max-width: var(--content-width);
+		margin: 0 auto;
+		padding: var(--spacing-8) var(--spacing-6) var(--spacing-16);
+	}
+
+	.page-header {
+		margin-bottom: var(--spacing-12);
+	}
+
+	.page-title {
+		font-size: var(--font-size-4xl);
+		font-weight: 500;
+		letter-spacing: -0.02em;
+		margin-bottom: var(--spacing-2);
+	}
+
+	.page-description {
+		font-size: var(--font-size-lg);
+		color: var(--color-muted);
+		font-family: var(--font-serif);
+		font-style: italic;
+	}
+
+	.empty {
+		color: var(--color-muted);
+		font-size: var(--font-size-lg);
+	}
+
+	.jobs-list {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.job-item {
+		padding: var(--spacing-8) 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.job-item:first-child {
+		padding-top: 0;
+	}
+
+	.job-item:last-child {
+		border-bottom: none;
+	}
+
+	.job-link {
+		display: block;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.job-meta {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+		margin-bottom: var(--spacing-2);
+	}
+
+	.job-source {
+		font-family: var(--font-mono);
+		color: var(--color-accent);
+		text-transform: uppercase;
+		font-size: var(--font-size-xs);
+		letter-spacing: 0.08em;
+	}
+
+	.meta-dot {
+		width: 3px;
+		height: 3px;
+		border-radius: 50%;
+		background: var(--color-muted);
+		flex-shrink: 0;
+	}
+
+	.job-title {
+		font-family: var(--font-serif);
+		font-size: var(--font-size-2xl);
+		font-weight: 500;
+		line-height: var(--leading-snug);
+		letter-spacing: -0.02em;
+		margin-bottom: var(--spacing-1);
+		transition: color var(--transition-fast);
+	}
+
+	.job-link:hover .job-title {
+		color: var(--color-accent);
+	}
+
+	.job-company {
+		font-size: var(--font-size-base);
+		color: var(--color-text-secondary);
+		margin-bottom: var(--spacing-2);
+	}
+
+	.job-summary {
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--spacing-6);
+		margin-top: var(--spacing-12);
+		padding-top: var(--spacing-8);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.pagination-link {
+		font-family: var(--font-mono);
+		font-size: var(--font-size-sm);
+		color: var(--color-accent);
+		text-decoration: none;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.pagination-link:hover {
+		text-decoration: underline;
+	}
+
+	.pagination-info {
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	@media (max-width: 600px) {
+		.jobs-page {
+			padding: var(--spacing-6) var(--spacing-4) var(--spacing-12);
+		}
+
+		.page-title {
+			font-size: var(--font-size-3xl);
+		}
+
+		.job-title {
+			font-size: var(--font-size-xl);
+		}
+	}
+</style>

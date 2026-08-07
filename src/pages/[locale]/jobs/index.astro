@@ -1,0 +1,26 @@
+---
+export const prerender = false;
+
+import Base from "../../../layouts/Base.astro";
+import JobsBoard from "../../../components/JobsBoard.astro";
+import { t, locales, type Locale, defaultLocale } from "../../../i18n/utils";
+
+const { locale: localeParam } = Astro.params;
+const locale: Locale = locales.includes(localeParam as Locale)
+	? (localeParam as Locale)
+	: defaultLocale;
+
+if (!locales.includes(localeParam as Locale)) {
+	return Astro.redirect(`/${defaultLocale}/jobs`, 302);
+}
+
+const page = Math.max(1, Number(Astro.url.searchParams.get("page") ?? "1") || 1);
+---
+
+<Base
+	title={t("jobs.title", locale)}
+	description={t("jobs.description", locale)}
+	locale={locale}
+>
+	<JobsBoard locale={locale} page={page} basePath={`/${locale}/jobs`} />
+</Base>
