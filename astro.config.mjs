@@ -33,6 +33,14 @@ const emdashInboxAdminEntry = fileURLToPath(
 	new URL("./src/plugins/emdash-inbox/admin.tsx", import.meta.url),
 ).replaceAll("\\", "/");
 
+const jobsBoardEntrypoint = fileURLToPath(
+	new URL("./src/plugins/jobs-board/index.ts", import.meta.url),
+).replaceAll("\\", "/");
+
+const jobsBoardAdminEntry = fileURLToPath(
+	new URL("./src/plugins/jobs-board/admin.tsx", import.meta.url),
+).replaceAll("\\", "/");
+
 
 export default defineConfig({
 	output: "server",
@@ -116,6 +124,24 @@ export default defineConfig({
 						"hooks.email-transport:register",
 						"hooks.email-events:register",
 					],
+				},
+				{
+					id: "jobs-board",
+					version: "1.0.0",
+					format: "native",
+					entrypoint: jobsBoardEntrypoint,
+					adminEntry: jobsBoardAdminEntry,
+					adminPages: [
+						{ path: "/", label: "Jobs", icon: "list" },
+						{ path: "/settings", label: "Settings", icon: "settings" },
+					],
+					capabilities: ["network:fetch"],
+					allowedHosts: ["*"],
+					storage: {
+						jobs: {
+							indexes: ["status", "category", "source", "postedAt", "syncedAt"],
+						},
+					},
 				},
 			],
 			// Perf test: audit-log + atproto removed from sandboxed[]. Their
