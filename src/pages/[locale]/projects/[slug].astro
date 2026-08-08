@@ -1,9 +1,9 @@
 ---
-import { getEmDashEntry, getEmDashCollection } from "emdash";
+import { getEmDashEntry, getEmDashCollection, getEntryTerms } from "emdash";
 import { Image, PortableText } from "emdash/ui";
 import Base from "../../../layouts/Base.astro";
 import ProjectCard from "../../../components/ProjectCard.astro";
-import { locales, type Locale, defaultLocale } from "../../../i18n/utils";
+import { locales, type Locale, defaultLocale, t } from "../../../i18n/utils";
 
 // Validate locale
 const { locale: localeParam, slug } = Astro.params;
@@ -25,11 +25,11 @@ try {
 	Astro.cache.set(cacheHint);
 } catch {}
 
-// Get related projects (same category or just other projects)
-const { entries: allProjects } = await getEmDashCollection("projects");
-const otherProjects = allProjects
-	.filter((p) => p.id !== project.id)
-	.slice(0, 2);
+const [{ entries: allProjects }, stack] = await Promise.all([
+	getEmDashCollection("projects"),
+	getEntryTerms("projects", project.data.id, "tag"),
+]);
+const otherProjects = allProjects.filter((p) => p.id !== project.id).slice(0, 3);
 
 // Parse gallery if present
 const gallery = project.data.gallery as
@@ -42,6 +42,9 @@ function getImageSrc(img: unknown): string | undefined {
 	const image = img as Record<string, unknown>;
 	return typeof image.src === "string" ? image.src : undefined;
 }
+
+const dateline = [project.data.year, project.data.client].filter(Boolean);
+const coverAlt = project.data.featured_image?.alt;
 ---
 
 <Base
@@ -51,82 +54,143 @@ function getImageSrc(img: unknown): string | undefined {
 	locale={locale}
 >
 	<article class="project">
-		<header class="project-header">
-			<div class="project-meta">
-				{
-					project.data.client && (
-						<span class="project-client" {...project.edit.client}>
-							{project.data.client}
-						</span>
-					)
-				}
-				{
-					project.data.client && project.data.year && (
-						<span class="meta-separator">·</span>
-					)
-				}
-				{
-					project.data.year && (
-						<span class="project-year" {...project.edit.year}>
-							{project.data.year}
-						</span>
-					)
-				}
-			</div>
-			<h1 class="project-title" {...project.edit.title}>
-				{project.data.title}
-			</h1>
-			{
-				project.data.summary && (
-					<p class="project-summary" {...project.edit.summary}>
-						{project.data.summary}
-					</p>
-				)
-			}
-			{
-				project.data.url && (
-					<a
-						href={project.data.url ?? "#"}
-						class="project-link"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						{locale === "ar" ? "عرض المشروع ←" : "View Live Project →"}
-					</a>
-				)
-			}
-		</header>
-
 		{
 			project.data.featured_image && (
-				<div class="featured-image" {...project.edit.featured_image}>
-					<Image image={project.data.featured_image} />
-				</div>
+				<figure class="project-cover" {...project.edit.featured_image}>
+					<div class="cover-frame">
+						<Image image={project.data.featured_image} />
+					</div>
+					{coverAlt && <figcaption class="cover-caption">{coverAlt}</figcaption>}
+				</figure>
 			)
 		}
 
-		<div class="project-content">
-			<PortableText value={project.data.content} />
-		</div>
+		<div class="project-grid">
+			<aside class="rail rail-start">
+				<div class="rail-sticky">
+					{
+						project.data.year && (
+							<div class="rail-section rail-section--first">
+								<div class="rail-label">{t("project.year", locale)}</div>
+								<div class="rail-value" {...project.edit.year}>
+									{project.data.year}
+								</div>
+							</div>
+						)
+					}
+					{
+						project.data.client && (
+							<div class="rail-section">
+								<div class="rail-label">{t("project.client", locale)}</div>
+								<div class="rail-value" {...project.edit.client}>
+									{project.data.client}
+								</div>
+							</div>
+						)
+					}
+					{
+						stack.length > 0 && (
+							<div class="rail-section">
+								<div class="rail-label">{t("project.stack", locale)}</div>
+								<div class="rail-stack">
+									{stack.map((term) => (
+										<a href={`/${locale}/projects?tag=${term.slug}`} class="stack-chip">
+											{term.label}
+										</a>
+									))}
+								</div>
+							</div>
+						)
+					}
+					{
+						project.data.url && (
+							<div class="rail-links">
+								<a
+									href={project.data.url}
+									class="rail-link"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									{t("project.viewLive", locale)}
+									<span class="rail-link-arrow" aria-hidden="true">↗</span>
+								</a>
+							</div>
+						)
+					}
+				</div>
+			</aside>
 
-		{
-			gallery && gallery.length > 0 && (
-				<div class="project-gallery">
-					{gallery.map((img) => (
-						<div class="gallery-item">
-							<img src={img.url} alt={img.alt || ""} loading="lazy" />
+			<div class="project-main">
+				<header class="project-header">
+					<div class="project-kicker">{t("project.kicker", locale)}</div>
+					<h1 class="project-title" {...project.edit.title}>
+						{project.data.title}
+					</h1>
+					{
+						project.data.summary && (
+							<p class="project-dek" {...project.edit.summary}>
+								{project.data.summary}
+							</p>
+						)
+					}
+
+					<div class="dateline">
+						{
+							dateline.length > 0 && (
+								<span class="dateline-primary">{dateline.join(" · ")}</span>
+							)
+						}
+						<button
+							type="button"
+							class="pill-btn"
+							data-share
+							data-copied={t("writing.linkCopied", locale)}
+						>
+							{t("writing.share", locale)}
+						</button>
+					</div>
+				</header>
+
+				<div class="project-content" dir="auto">
+					<PortableText value={project.data.content} />
+				</div>
+
+				{
+					gallery && gallery.length > 0 && (
+						<div class="project-gallery">
+							{gallery.map((img) => (
+								<div class="gallery-item">
+									<img src={img.url} alt={img.alt || ""} loading="lazy" />
+								</div>
+							))}
 						</div>
-					))}
+					)
+				}
+
+				<div class="project-cta">
+					<p class="cta-text">{t("project.ctaText", locale)}</p>
+					<a href={`/${locale}/contact`} class="cta-btn">
+						{t("project.ctaButton", locale)}
+					</a>
 				</div>
-			)
-		}
+			</div>
+
+			<aside class="rail rail-end">
+				<div class="rail-sticky">
+					<nav class="toc" aria-label={t("writing.onThisPage", locale)}>
+						<div class="rail-label">{t("writing.onThisPage", locale)}</div>
+						<div class="toc-content" id="toc-content"></div>
+					</nav>
+				</div>
+			</aside>
+		</div>
 	</article>
 
 	{
 		otherProjects.length > 0 && (
 			<section class="more-projects">
 				<div class="more-inner">
-					<h2 class="more-title">{locale === "ar" ? "أعمال أخرى" : "More Work"}</h2>
+					<h2 class="rail-label">{t("project.moreWork", locale)}</h2>
 					<div class="more-grid">
 						{otherProjects.map((p) => (
 							<ProjectCard
@@ -136,6 +200,7 @@ function getImageSrc(img: unknown): string | undefined {
 								href={`/${locale}/projects/${p.id}`}
 								client={p.data.client}
 								year={p.data.year}
+								locale={locale}
 							/>
 						))}
 					</div>
@@ -143,159 +208,545 @@ function getImageSrc(img: unknown): string | undefined {
 			</section>
 		)
 	}
+
+	<script>
+		function buildToc() {
+			const content = document.querySelector(".project-content");
+			const tocContainer = document.getElementById("toc-content");
+			if (!content || !tocContainer) return;
+
+			const headings = content.querySelectorAll("h2, h3");
+			if (headings.length === 0) {
+				const toc = document.querySelector(".toc") as HTMLElement | null;
+				if (toc) toc.style.display = "none";
+				return;
+			}
+
+			const list = document.createElement("ol");
+			list.className = "toc-list";
+
+			headings.forEach((heading, index) => {
+				if (!heading.id) heading.id = `heading-${index}`;
+				const li = document.createElement("li");
+				li.className =
+					heading.tagName === "H3" ? "toc-item toc-item--nested" : "toc-item";
+				const link = document.createElement("a");
+				link.href = `#${heading.id}`;
+				link.className = "toc-link";
+				link.textContent = heading.textContent;
+				li.appendChild(link);
+				list.appendChild(li);
+			});
+
+			tocContainer.appendChild(list);
+
+			const observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						const id = entry.target.id;
+						const link = tocContainer.querySelector(`a[href="#${id}"]`);
+						if (link && entry.isIntersecting) {
+							tocContainer
+								.querySelectorAll(".toc-link")
+								.forEach((l) => l.classList.remove("active"));
+							link.classList.add("active");
+						}
+					});
+				},
+				{ rootMargin: "-80px 0px -80% 0px" }
+			);
+
+			headings.forEach((heading) => observer.observe(heading));
+		}
+
+		function wireShare() {
+			document.querySelectorAll<HTMLButtonElement>("[data-share]").forEach((btn) => {
+				btn.addEventListener("click", async () => {
+					const url = window.location.href;
+					if (navigator.share) {
+						try {
+							await navigator.share({ title: document.title, url });
+						} catch {
+							/* user dismissed the share sheet */
+						}
+						return;
+					}
+					try {
+						await navigator.clipboard.writeText(url);
+						const original = btn.textContent;
+						btn.textContent = btn.dataset.copied ?? original;
+						setTimeout(() => {
+							btn.textContent = original;
+						}, 1600);
+					} catch {
+						/* clipboard unavailable — nothing useful to fall back to */
+					}
+				});
+			});
+		}
+
+		buildToc();
+		wireShare();
+	</script>
 </Base>
 
 <style>
 	.project {
-		max-width: var(--max-width);
+		/* Inter in the source design; Thmanyah Sans is the self-hosted Arabic
+		   equivalent already loaded by the site. */
+		--ui: var(--font-sans);
+	}
+
+	.more-projects {
+		--ui: var(--font-sans);
+	}
+
+	:global(html[dir="rtl"]) .project,
+	:global(html[dir="rtl"]) .more-projects {
+		--ui: var(--font-arabic-sans);
+	}
+
+	/* ── Cover ── */
+	.project-cover {
+		max-width: var(--wide-width);
 		margin: 0 auto;
-		padding: 0 var(--spacing-lg) var(--spacing-4xl);
+		padding: var(--spacing-10) var(--spacing-6) 0;
 	}
 
-	.project-header {
-		margin-bottom: var(--spacing-2xl);
+	.cover-frame {
+		aspect-ratio: 1248 / 702;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
 	}
 
-	.project-meta {
-		font-size: var(--font-size-sm);
+	.cover-frame :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.cover-caption {
+		padding-top: var(--spacing-2);
+		font-family: var(--ui);
+		font-size: var(--font-size-xs);
+		line-height: 1.5;
 		color: var(--color-muted);
-		margin-bottom: var(--spacing-sm);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 
-	.meta-separator {
-		margin: 0 var(--spacing-sm);
+	/* ── Editorial 10-column grid ── */
+	.project-grid {
+		max-width: var(--wide-width);
+		margin: 0 auto;
+		padding: 3.5rem var(--spacing-6) 0;
+		display: grid;
+		grid-template-columns: repeat(10, 1fr);
+		gap: var(--spacing-8);
+		align-items: start;
 	}
 
-	.project-title {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-4xl);
+	.rail-start {
+		grid-column: 1 / span 2;
+	}
+
+	.project-main {
+		grid-column: 3 / span 6;
+		min-width: 0;
+	}
+
+	.rail-end {
+		grid-column: 9 / span 2;
+	}
+
+	.rail-sticky {
+		position: sticky;
+		top: calc(var(--nav-height) + var(--spacing-8));
+	}
+
+	/* ── Rail ── */
+	.rail-section {
+		margin-top: var(--spacing-6);
+	}
+
+	.rail-section--first {
+		margin-top: 0;
+	}
+
+	.rail-label {
+		font-family: var(--ui);
+		font-size: var(--font-size-xs);
 		font-weight: 500;
-		line-height: 1.1;
-		margin-bottom: var(--spacing-lg);
-	}
-
-	.project-summary {
-		font-size: var(--font-size-lg);
 		color: var(--color-muted);
+		margin-bottom: var(--spacing-2);
+	}
+
+	.rail-value {
+		font-family: var(--ui);
+		font-size: 15px;
 		line-height: 1.6;
-		margin-bottom: var(--spacing-lg);
-	}
-
-	.project-link {
-		display: inline-block;
-		font-size: var(--font-size-sm);
-		color: var(--color-accent);
-		text-decoration: none;
-		transition: color var(--transition-fast);
-	}
-
-	.project-link:hover {
 		color: var(--color-text);
 	}
 
-	.featured-image {
-		margin-bottom: var(--spacing-3xl);
+	.rail-stack {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
 	}
 
-	.featured-image img {
-		width: 100%;
-		height: auto;
+	.stack-chip {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		padding: 4px 8px;
+		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
+		color: var(--color-text-secondary);
+		text-decoration: none;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
 	}
 
+	.stack-chip:hover {
+		color: var(--color-text);
+		border-color: var(--color-muted);
+	}
+
+	.rail-links {
+		margin-top: var(--spacing-6);
+		padding-top: var(--spacing-5);
+		border-top: 1px solid var(--color-border-subtle);
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-2);
+	}
+
+	.rail-link {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--ui);
+		font-size: 14px;
+		color: var(--color-accent);
+		text-decoration: none;
+	}
+
+	.rail-link:hover {
+		color: var(--color-accent-hover);
+	}
+
+	.rail-link-arrow {
+		font-family: var(--font-mono);
+		font-size: 11px;
+	}
+
+	/* ── Header ── */
+	.project-kicker {
+		font-family: var(--ui);
+		font-size: var(--font-size-xs);
+		font-weight: 500;
+		color: var(--color-accent);
+		margin-bottom: var(--spacing-4);
+	}
+
+	.project-title {
+		margin: 0;
+		font-size: 45px;
+		font-weight: 700;
+		line-height: 1.28;
+		letter-spacing: 0;
+		text-wrap: pretty;
+	}
+
+	.project-dek {
+		margin: var(--spacing-5) 0 0;
+		font-family: var(--ui);
+		font-size: 21.8px;
+		line-height: 1.45;
+		color: var(--color-text-secondary);
+		text-wrap: pretty;
+	}
+
+	.dateline {
+		margin-top: var(--spacing-5);
+		padding: var(--spacing-3) 0;
+		border-bottom: 1px solid var(--color-border);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--spacing-4);
+		flex-wrap: wrap;
+	}
+
+	.dateline-primary {
+		font-family: var(--ui);
+		font-size: 15.5px;
+		line-height: 1.55;
+		color: var(--color-text);
+	}
+
+	.pill-btn {
+		margin-inline-start: auto;
+		font-family: var(--ui);
+		font-size: 13px;
+		padding: 7px 14px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: transparent;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.pill-btn:hover {
+		color: var(--color-text);
+		border-color: var(--color-muted);
+	}
+
+	/* ── Body ── */
 	.project-content {
-		font-size: var(--font-size-base);
-		line-height: 1.7;
+		font-size: 18px;
+		line-height: 1.85;
 	}
 
 	.project-content :global(p) {
-		margin-bottom: 1.5em;
+		margin: 0 0 1.15em;
+		unicode-bidi: plaintext;
 	}
 
 	.project-content :global(h2) {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-2xl);
-		font-weight: 500;
-		margin-top: 2.5em;
-		margin-bottom: 0.75em;
+		font-size: 29.2px;
+		font-weight: 700;
+		line-height: 1.38;
+		margin: 2.35em 0 0.55em;
+		scroll-margin-top: calc(var(--nav-height) + var(--spacing-4));
+		unicode-bidi: plaintext;
 	}
 
 	.project-content :global(h3) {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-xl);
-		font-weight: 500;
-		margin-top: 2em;
-		margin-bottom: 0.5em;
+		font-family: var(--ui);
+		font-size: 18px;
+		font-weight: 600;
+		line-height: 1.6;
+		margin: 1.8em 0 0.4em;
+		scroll-margin-top: calc(var(--nav-height) + var(--spacing-4));
+		unicode-bidi: plaintext;
 	}
 
 	.project-content :global(blockquote) {
 		margin: 2em 0;
-		padding-left: var(--spacing-xl);
-		border-left: 2px solid var(--color-accent);
-		color: var(--color-muted);
-		font-family: var(--font-serif);
-		font-style: italic;
-		font-size: var(--font-size-lg);
+		padding: var(--spacing-6) 28px;
+		background: var(--color-bg-subtle);
+		border-inline-start: 3px solid var(--color-accent);
+		color: var(--color-text-secondary);
+		font-size: 20px;
+		line-height: 1.7;
+	}
+
+	.project-content :global(blockquote p:last-child) {
+		margin-bottom: 0;
+	}
+
+	.project-content :global(pre) {
+		margin: 1.35em 0;
+		padding: var(--spacing-5);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border-subtle);
+		border-radius: var(--radius-lg);
+		overflow-x: auto;
+		font-family: var(--font-mono);
+		font-size: 13.5px;
+		line-height: 1.75;
+		color: var(--color-text-secondary);
+		direction: ltr;
+		text-align: left;
+	}
+
+	.project-content :global(code) {
+		font-family: var(--font-mono);
+		font-size: 0.9em;
+		background: var(--color-surface);
+		padding: 0.2em 0.4em;
+		border-radius: var(--radius);
+	}
+
+	.project-content :global(pre code) {
+		background: none;
+		padding: 0;
 	}
 
 	.project-content :global(ul),
 	.project-content :global(ol) {
-		margin-bottom: 1.5em;
-		padding-left: 1.25em;
+		margin: 0 0 1.15em;
+		padding-inline-start: 22px;
 	}
 
 	.project-content :global(li) {
-		margin-bottom: 0.5em;
+		margin-bottom: 0.45em;
 	}
 
 	.project-content :global(img) {
 		margin: 2em 0;
-		border-radius: var(--radius);
 	}
 
+	.project-content :global(a) {
+		color: var(--color-accent);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	/* ── Gallery ── */
 	.project-gallery {
-		margin-top: var(--spacing-3xl);
+		margin-top: 2.25rem;
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: var(--spacing-lg);
+		grid-template-columns: 1fr 1fr;
+		gap: var(--spacing-4);
 	}
 
 	.gallery-item img {
 		width: 100%;
-		height: auto;
-		border-radius: var(--radius);
+		aspect-ratio: 4 / 3;
+		object-fit: cover;
+		background: var(--color-bg-subtle);
 	}
 
+	/* ── CTA ── */
+	.project-cta {
+		margin-top: 3.5rem;
+		padding: var(--spacing-8);
+		background: var(--color-bg-subtle);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--spacing-6);
+		flex-wrap: wrap;
+	}
+
+	.cta-text {
+		margin: 0;
+		max-width: 380px;
+		font-size: var(--font-size-base);
+		line-height: 1.8;
+		color: var(--color-text-secondary);
+	}
+
+	.cta-btn {
+		display: inline-flex;
+		font-family: var(--ui);
+		font-size: 13px;
+		font-weight: 600;
+		background: var(--color-accent);
+		color: var(--color-on-accent);
+		padding: 10px 20px;
+		border-radius: var(--radius-lg);
+		text-decoration: none;
+		transition: background var(--transition-fast);
+	}
+
+	.cta-btn:hover {
+		background: var(--color-accent-hover);
+	}
+
+	/* ── TOC ── */
+	.toc-content :global(.toc-list) {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		border-inline-start: 1px solid var(--color-border);
+	}
+
+	.toc-content :global(.toc-item--nested) {
+		padding-inline-start: var(--spacing-3);
+	}
+
+	.toc-content :global(.toc-link) {
+		display: block;
+		padding: 6px 14px;
+		font-family: var(--ui);
+		font-size: 13.5px;
+		line-height: 1.43;
+		color: var(--color-text-secondary);
+		text-decoration: none;
+		border-inline-start: 1px solid transparent;
+		margin-inline-start: -1px;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.toc-content :global(.toc-link:hover),
+	.toc-content :global(.toc-link.active) {
+		color: var(--color-accent);
+		border-inline-start-color: var(--color-accent);
+	}
+
+	/* ── Other projects ── */
 	.more-projects {
-		background: var(--color-surface);
-		padding: var(--spacing-4xl) 0;
-		margin-top: var(--spacing-2xl);
+		margin-top: 5.5rem;
+		background: var(--color-bg-subtle);
+		border-top: 1px solid var(--color-border-subtle);
 	}
 
 	.more-inner {
 		max-width: var(--wide-width);
 		margin: 0 auto;
-		padding: 0 var(--spacing-lg);
+		padding: var(--spacing-16) var(--spacing-6);
 	}
 
-	.more-title {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-2xl);
-		font-weight: 500;
-		margin-bottom: var(--spacing-2xl);
+	.more-inner .rail-label {
+		margin-bottom: var(--spacing-8);
 	}
 
 	.more-grid {
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: var(--spacing-2xl);
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--spacing-8);
 	}
 
-	@media (max-width: 768px) {
+	@media (max-width: 1120px) {
+		.project-grid {
+			grid-template-columns: minmax(0, 760px);
+			justify-content: center;
+			gap: 0;
+		}
+
+		.rail-start,
+		.rail-end {
+			display: none;
+		}
+
+		.project-main {
+			grid-column: 1 / -1;
+		}
+
 		.project-title {
-			font-size: var(--font-size-3xl);
+			font-size: 38px;
+		}
+
+		.project-dek {
+			font-size: 19.5px;
+		}
+	}
+
+	@media (max-width: 900px) {
+		.project-cover {
+			padding: var(--spacing-6) var(--spacing-4) 0;
+		}
+
+		.project-grid {
+			padding: var(--spacing-8) var(--spacing-4) 0;
+		}
+
+		.more-inner {
+			padding: var(--spacing-12) var(--spacing-4);
+		}
+
+		.more-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (max-width: 640px) {
+		.project-title {
+			font-size: 30px;
+		}
+
+		.project-dek {
+			font-size: 18px;
 		}
 
 		.project-gallery {

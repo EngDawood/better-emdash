@@ -6,7 +6,6 @@ import {
 	getTermsForEntries,
 	getSeoMeta,
 	getSiteSettings,
-	getTaxonomyTerms,
 	getWidgetArea,
 } from "emdash";
 import {
@@ -61,7 +60,7 @@ function getImageUrl(img: unknown): string | undefined {
 const [settings, tags, { entries: recentPosts }, newsletterPostArea] = await Promise.all([
 	getSiteSettings(),
 	getEntryTerms("posts", post.data.id, "tag"),
-	getEmDashCollection("posts", { locale, orderBy: { published_at: "desc" }, limit: 4 }),
+	getEmDashCollection("posts", { locale, orderBy: { published_at: "desc" }, limit: 8 }),
 	getWidgetArea("newsletter-post"),
 ]);
 const siteTitle = settings?.title || "Studio";
@@ -75,24 +74,44 @@ const seo = getSeoMeta(post, {
 });
 
 const bylines = post.data.bylines ?? [];
+const leadByline = bylines[0];
 const readingTime = getReadingTime(post.data.content);
-const otherPosts = recentPosts.filter((p) => p.id !== post.id).slice(0, 3);
 
-const otherTagsMap = await getTermsForEntries("posts", otherPosts.map(p => p.data.id), "tag");
-const otherPostsWithTags = otherPosts.map(p => ({
+// The design shows two recirculation blocks: an inline "read also" list inside
+// the article, then a "related posts" grid at the foot. Split one query so a
+// post never shows up in both.
+const otherPosts = recentPosts.filter((p) => p.id !== post.id);
+const readAlso = otherPosts.slice(0, 3);
+const relatedPosts = otherPosts.slice(3, 6);
+
+const relatedTagsMap = await getTermsForEntries(
+	"posts",
+	relatedPosts.map((p) => p.data.id),
+	"tag"
+);
+const relatedWithTags = relatedPosts.map((p) => ({
 	post: p,
-	tags: otherTagsMap.get(p.data.id) ?? [],
+	tags: relatedTagsMap.get(p.data.id) ?? [],
 	bylines: p.data.bylines ?? [],
 }));
 
+const dateFormat: Intl.DateTimeFormatOptions = {
+	year: "numeric",
+	month: "long",
+	day: "numeric",
+};
+const dateLocale = locale === "ar" ? "ar-SA" : "en-US";
+
 const publishDate =
-	post.data.publishedAt?.toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US", {
-		year: "numeric",
-		month: "long",
-		day: "numeric",
-	}) ?? null;
+	post.data.publishedAt?.toLocaleDateString(dateLocale, dateFormat) ?? null;
+const updatedDate = post.data.updatedAt.toLocaleDateString(
+	dateLocale,
+	dateFormat
+);
+// Only surface "last updated" when it actually differs from the publish date.
+const showUpdated = Boolean(publishDate) && updatedDate !== publishDate;
 
-
+const coverAlt = post.data.featured_image?.alt;
 ---
 
 <Base
@@ -110,65 +129,64 @@ const publishDate =
 	<article class="article">
 		{
 			post.data.featured_image && (
-				<div class="article-hero" {...post.edit.featured_image}>
-					<Image image={post.data.featured_image} />
-				</div>
+				<figure class="article-cover" {...post.edit.featured_image}>
+					<div class="cover-frame">
+						<Image image={post.data.featured_image} />
+					</div>
+					{coverAlt && <figcaption class="cover-caption">{coverAlt}</figcaption>}
+				</figure>
 			)
 		}
 
 		<div class="article-grid">
-			<aside class="article-meta-col">
-				<div class="meta-sticky">
+			<aside class="rail rail-start">
+				<div class="rail-sticky">
 					{
-						bylines.length > 0 && (
-							<div class="meta-block byline-block">
-								<span class="meta-label">
-									{bylines.length === 1 ? t("writing.author", locale) : t("writing.authors", locale)}
-								</span>
-								<div class="bylines">
-									{bylines.map((credit) => (
-										<div class="byline">
-											{credit.byline.avatarMediaId && (
-												<img
-													src={`/_emdash/api/media/file/${credit.byline.avatarMediaId}`}
-													alt={credit.byline.displayName}
-													class="byline-avatar"
-												/>
-											)}
-											<div class="byline-info">
-												<span class="byline-name">
-													{credit.byline.displayName}
-												</span>
-												{credit.roleLabel && (
-													<span class="byline-role">{credit.roleLabel}</span>
-												)}
-											</div>
-										</div>
-									))}
+						leadByline && (
+							<div class="rail-byline">
+								{leadByline.byline.avatarMediaId && (
+									<img
+										src={`/_emdash/api/media/file/${leadByline.byline.avatarMediaId}`}
+										alt={leadByline.byline.displayName}
+										class="byline-avatar"
+										loading="lazy"
+									/>
+								)}
+								<div class="byline-info">
+									<span class="byline-name">{leadByline.byline.displayName}</span>
+									{leadByline.roleLabel && (
+										<span class="byline-role">{leadByline.roleLabel}</span>
+									)}
 								</div>
 							</div>
 						)
 					}
 					{
-						publishDate && (
-							<div class="meta-block">
-								<span class="meta-label">{t("writing.published", locale)}</span>
-								<time class="meta-value">{publishDate}</time>
-							</div>
+						bylines.length > 1 && (
+							<p class="rail-coauthors">
+								{t("writing.authors", locale)}:{" "}
+								{bylines
+									.slice(1)
+									.map((credit) => credit.byline.displayName)
+									.join("، ")}
+							</p>
 						)
 					}
-					<div class="meta-block">
-						<span class="meta-label">{t("writing.readingTime", locale)}</span>
-						<span class="meta-value">{readingTime} {t("writing.min", locale)}</span>
-					</div>
+					{
+						leadByline?.byline.bio && (
+							<p class="rail-bio">{leadByline.byline.bio}</p>
+						)
+					}
 					{
 						tags.length > 0 && (
-							<div class="meta-block">
-								<span class="meta-label">{t("writing.tags", locale)}</span>
-								<div class="meta-tags">
+							<div class="rail-section">
+								<div class="rail-label">{t("writing.tags", locale)}</div>
+								<div class="rail-tags">
 									{tags.map((tag) => (
-										<a href={`/${locale}/tag/${tag.slug}`} class="meta-tag">
-											{t(`taxonomy.${tag.slug}`, locale) !== `taxonomy.${tag.slug}` ? t(`taxonomy.${tag.slug}`, locale) : tag.label}
+										<a href={`/${locale}/tag/${tag.slug}`} class="rail-tag">
+											{t(`taxonomy.${tag.slug}`, locale) !== `taxonomy.${tag.slug}`
+												? t(`taxonomy.${tag.slug}`, locale)
+												: tag.label}
 										</a>
 									))}
 								</div>
@@ -180,43 +198,91 @@ const publishDate =
 
 			<div class="article-main">
 				<header class="article-header">
-					<div class="article-meta">
-						{
-							bylines.length > 0 && (
-								<>
-									<span class="article-meta-byline">
-										{bylines.map((credit, i) => (
-											<>
-												{i > 0 && ", "}
-												{credit.byline.displayName}
-											</>
-										))}
-									</span>
-									<span class="meta-dot" />
-								</>
-							)
-						}
-						{
-							publishDate && (
-								<>
-									<time>{publishDate}</time>
-									<span class="meta-dot" />
-								</>
-							)
-						}
-						<span>{readingTime} {t("writing.min", locale)}</span>
-					</div>
 					<h1 class="article-title" {...post.edit.title}>{post.data.title}</h1>
 					{
 						post.data.excerpt && (
-							<p class="article-excerpt">{post.data.excerpt}</p>
+							<p class="article-dek" {...post.edit.excerpt}>
+								{post.data.excerpt}
+							</p>
 						)
 					}
+
+					{
+						leadByline && (
+							<div class="inline-byline">
+								{leadByline.byline.avatarMediaId && (
+									<img
+										src={`/_emdash/api/media/file/${leadByline.byline.avatarMediaId}`}
+										alt={leadByline.byline.displayName}
+										class="byline-avatar"
+										loading="lazy"
+									/>
+								)}
+								<div class="byline-info">
+									<span class="byline-name">{leadByline.byline.displayName}</span>
+									{leadByline.roleLabel && (
+										<span class="byline-role">{leadByline.roleLabel}</span>
+									)}
+								</div>
+							</div>
+						)
+					}
+
+					<div class="dateline">
+						<div class="dateline-text">
+							<span class="dateline-primary">
+								{publishDate && <time datetime={post.data.publishedAt?.toISOString()}>{publishDate}</time>}
+								{publishDate && <span class="dateline-sep">·</span>}
+								<span>{readingTime} {t("writing.min", locale)}</span>
+							</span>
+							{
+								showUpdated && (
+									<span class="dateline-secondary">
+										{t("writing.updated", locale)}{" "}
+										<time datetime={post.data.updatedAt.toISOString()}>{updatedDate}</time>
+									</span>
+								)
+							}
+						</div>
+						<button
+							type="button"
+							class="pill-btn"
+							data-share
+							data-copied={t("writing.linkCopied", locale)}
+						>
+							{t("writing.share", locale)}
+						</button>
+					</div>
 				</header>
 
 				<div class="article-content" dir="auto">
 					<PortableText value={post.data.content} />
 				</div>
+
+				{
+					readAlso.length > 0 && (
+						<aside class="read-also">
+							<h2 class="rail-label">{t("writing.readAlso", locale)}</h2>
+							<div class="read-also-list">
+								{readAlso.map((p) => (
+									<a href={`/${locale}/blog/${p.id}`} class="read-also-row">
+										<div class="read-also-thumb">
+											{p.data.featured_image && <Image image={p.data.featured_image} />}
+										</div>
+										<div class="read-also-body">
+											<span class="read-also-title">{p.data.title}</span>
+											{p.data.bylines?.[0] && (
+												<span class="read-also-author">
+													{p.data.bylines[0].byline.displayName}
+												</span>
+											)}
+										</div>
+									</a>
+								))}
+							</div>
+						</aside>
+					)
+				}
 
 				{newsletterPostArea && newsletterPostArea.widgets.length > 0 && (
 					<NewsletterSignup locale={locale} />
@@ -228,10 +294,10 @@ const publishDate =
 				</div>
 			</div>
 
-			<aside class="article-sidebar">
-				<div class="sidebar-sticky">
-					<nav class="toc" aria-label="Table of contents">
-						<h4 class="toc-title">{t("writing.onThisPage", locale)}</h4>
+			<aside class="rail rail-end">
+				<div class="rail-sticky">
+					<nav class="toc" aria-label={t("writing.onThisPage", locale)}>
+						<div class="rail-label">{t("writing.onThisPage", locale)}</div>
 						<div class="toc-content" id="toc-content"></div>
 					</nav>
 					<WidgetArea name="sidebar" />
@@ -241,12 +307,12 @@ const publishDate =
 	</article>
 
 	{
-		otherPostsWithTags.length > 0 && (
+		relatedWithTags.length > 0 && (
 			<section class="more-posts">
 				<div class="more-inner">
-					<h2 class="more-title">{t("writing.continueReading", locale)}</h2>
+					<h2 class="rail-label">{t("writing.related", locale)}</h2>
 					<div class="more-grid">
-						{otherPostsWithTags.map(
+						{relatedWithTags.map(
 							({ post: p, tags: postTags, bylines: postBylines }) => (
 								<PostCard
 									title={p.data.title}
@@ -280,7 +346,7 @@ const publishDate =
 				return;
 			}
 
-			const list = document.createElement("ul");
+			const list = document.createElement("ol");
 			list.className = "toc-list";
 
 			headings.forEach((heading, index) => {
@@ -317,224 +383,335 @@ const publishDate =
 			headings.forEach((heading) => observer.observe(heading));
 		}
 
+		function wireShare() {
+			document.querySelectorAll<HTMLButtonElement>("[data-share]").forEach((btn) => {
+				btn.addEventListener("click", async () => {
+					const url = window.location.href;
+					if (navigator.share) {
+						try {
+							await navigator.share({ title: document.title, url });
+						} catch {
+							/* user dismissed the share sheet */
+						}
+						return;
+					}
+					try {
+						await navigator.clipboard.writeText(url);
+						const original = btn.textContent;
+						btn.textContent = btn.dataset.copied ?? original;
+						setTimeout(() => {
+							btn.textContent = original;
+						}, 1600);
+					} catch {
+						/* clipboard unavailable — nothing useful to fall back to */
+					}
+				});
+			});
+		}
+
 		buildToc();
+		wireShare();
 	</script>
 </Base>
 
 <style>
 	.article {
+		/* Inter in the source design; Thmanyah Sans is the self-hosted Arabic
+		   equivalent already loaded by the site. */
+		--ui: var(--font-sans);
+	}
+
+	:global(html[dir="rtl"]) .article,
+	:global(html[dir="rtl"]) .more-posts {
+		--ui: var(--font-arabic-sans);
+	}
+
+	.more-posts {
+		--ui: var(--font-sans);
+	}
+
+	/* ── Cover ── */
+	.article-cover {
 		max-width: var(--wide-width);
 		margin: 0 auto;
+		padding: var(--spacing-10) var(--spacing-6) 0;
 	}
 
-	.article-hero {
-		margin: var(--spacing-16) var(--spacing-6);
-		border-radius: var(--radius-lg);
+	.cover-frame {
+		aspect-ratio: 1248 / 702;
 		overflow: hidden;
+		background: var(--color-bg-subtle);
 	}
 
-	.article-hero img {
+	.cover-frame :global(img) {
 		width: 100%;
-		height: auto;
-		max-height: 500px;
+		height: 100%;
 		object-fit: cover;
 	}
 
+	.cover-caption {
+		padding-top: var(--spacing-2);
+		font-family: var(--ui);
+		font-size: var(--font-size-xs);
+		line-height: 1.5;
+		color: var(--color-muted);
+	}
+
+	/* ── Editorial 10-column grid ── */
 	.article-grid {
+		max-width: var(--wide-width);
+		margin: 0 auto;
+		padding: 3.5rem var(--spacing-6) 0;
 		display: grid;
-		grid-template-columns:
-			var(--meta-col-width) minmax(0, var(--content-width))
-			var(--gutter-width);
-		gap: var(--spacing-10);
-		justify-content: center;
-		padding: 0 var(--spacing-6);
-		margin: var(--spacing-16) 0;
+		grid-template-columns: repeat(10, 1fr);
+		gap: var(--spacing-8);
+		align-items: start;
 	}
 
-	.article-meta-col {
-		display: block;
+	.rail-start {
+		grid-column: 1 / span 2;
 	}
 
-	.meta-sticky {
+	.article-main {
+		grid-column: 3 / span 6;
+		min-width: 0;
+	}
+
+	.rail-end {
+		grid-column: 9 / span 2;
+	}
+
+	.rail-sticky {
 		position: sticky;
 		top: calc(var(--nav-height) + var(--spacing-8));
 	}
 
-	.meta-block {
-		margin-bottom: var(--spacing-6);
-	}
-
-	.meta-label {
-		display: block;
-		font-size: var(--font-size-xs);
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: var(--tracking-wide);
-		color: var(--color-muted);
-		margin-bottom: var(--spacing-1);
-	}
-
-	.meta-value {
-		display: block;
-		font-size: var(--font-size-sm);
-		color: var(--color-text-secondary);
-	}
-
-	.meta-tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--spacing-1);
-	}
-
-	.meta-tag {
-		display: inline-block;
-		padding: var(--tag-padding-y) var(--spacing-2);
-		font-size: var(--font-size-xs);
-		color: var(--color-text-secondary);
-		background: var(--color-surface);
-		border-radius: var(--radius);
-		text-decoration: none;
-		transition: color var(--transition-fast), background var(--transition-fast);
-	}
-
-	.meta-tag:hover {
-		color: var(--color-text);
-		background: var(--color-border);
-	}
-
-	.bylines {
-		display: flex;
-		flex-direction: column;
-		gap: var(--spacing-1);
-	}
-
-	.byline {
+	/* ── Rail ── */
+	.rail-byline {
 		display: flex;
 		align-items: center;
-		gap: var(--spacing-2);
+		gap: var(--spacing-3);
 	}
 
 	.byline-avatar {
-		width: var(--avatar-size-lg);
-		height: var(--avatar-size-lg);
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		object-fit: cover;
+		flex-shrink: 0;
+		background: var(--color-bg-subtle);
 	}
 
 	.byline-info {
 		display: flex;
 		flex-direction: column;
+		min-width: 0;
 	}
 
 	.byline-name {
-		font-size: var(--font-size-sm);
+		font-family: var(--ui);
+		font-size: 15px;
 		font-weight: 500;
+		line-height: 1.6;
 		color: var(--color-text);
 	}
 
 	.byline-role {
+		font-family: var(--ui);
+		font-size: 12.5px;
+		font-weight: 500;
+		line-height: 1.45;
+		color: var(--color-accent);
+	}
+
+	.rail-coauthors,
+	.rail-bio {
+		margin: var(--spacing-4) 0 0;
+		font-family: var(--ui);
+		font-size: 14.8px;
+		line-height: 1.62;
+		color: var(--color-text-secondary);
+	}
+
+	.rail-section {
+		margin-top: var(--spacing-6);
+		padding-top: var(--spacing-5);
+		border-top: 1px solid var(--color-border-subtle);
+	}
+
+	.rail-label {
+		font-family: var(--ui);
 		font-size: var(--font-size-xs);
+		font-weight: 500;
 		color: var(--color-muted);
+		margin-bottom: var(--spacing-3);
 	}
 
-	.article-main {
-		min-width: 0;
-	}
-
-	.article-header {
-		margin-bottom: var(--spacing-10);
-	}
-
-	.article-header .article-meta {
-		display: none;
-		align-items: center;
+	.rail-tags {
+		display: flex;
 		flex-wrap: wrap;
-		column-gap: var(--spacing-3);
-		font-size: var(--font-size-sm);
-		color: var(--color-muted);
-		margin-bottom: var(--spacing-4);
+		gap: 6px;
 	}
 
-	.article-meta-byline {
-		font-weight: 500;
+	.rail-tag {
+		font-family: var(--ui);
+		font-size: var(--font-size-xs);
+		padding: 3px 9px;
+		border-radius: var(--radius);
+		background: var(--color-bg-subtle);
 		color: var(--color-text-secondary);
+		text-decoration: none;
+		transition: color var(--transition-fast), background var(--transition-fast);
 	}
 
-	.meta-dot {
-		width: 3px;
-		height: 3px;
-		border-radius: 50%;
-		background: var(--color-muted);
+	.rail-tag:hover {
+		color: var(--color-text);
+		background: var(--color-border);
 	}
 
+	/* ── Header ── */
 	.article-title {
-		font-family: var(--font-serif);
-		font-size: clamp(2rem, 5vw, var(--font-size-4xl));
-		font-weight: 500;
-		line-height: var(--leading-tight);
-		letter-spacing: -0.02em;
-		margin-bottom: var(--spacing-4);
+		margin: 0;
+		font-size: 45px;
+		font-weight: 700;
+		line-height: 1.28;
+		letter-spacing: 0;
+		text-wrap: pretty;
 	}
 
-	.article-excerpt {
-		font-size: var(--font-size-xl);
-		line-height: var(--leading-relaxed);
+	.article-dek {
+		margin: var(--spacing-5) 0 0;
+		font-family: var(--ui);
+		font-size: 21.8px;
+		line-height: 1.45;
 		color: var(--color-text-secondary);
-		font-family: var(--font-serif);
-		font-style: italic;
+		text-wrap: pretty;
 	}
 
+	.inline-byline {
+		display: none;
+		margin-top: var(--spacing-6);
+		align-items: center;
+		gap: var(--spacing-3);
+	}
+
+	.inline-byline .byline-avatar {
+		width: 36px;
+		height: 36px;
+	}
+
+	.dateline {
+		margin-top: var(--spacing-5);
+		padding: var(--spacing-3) 0;
+		border-bottom: 1px solid var(--color-border);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--spacing-4);
+		flex-wrap: wrap;
+	}
+
+	.dateline-text {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-1);
+	}
+
+	.dateline-primary {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-2);
+		font-family: var(--ui);
+		font-size: 15.5px;
+		line-height: 1.55;
+		color: var(--color-text);
+	}
+
+	.dateline-sep {
+		color: var(--color-muted);
+	}
+
+	.dateline-secondary {
+		font-family: var(--ui);
+		font-size: 13.5px;
+		line-height: 1.55;
+		color: var(--color-muted);
+	}
+
+	.pill-btn {
+		font-family: var(--ui);
+		font-size: 13px;
+		padding: 7px 14px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: transparent;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.pill-btn:hover {
+		color: var(--color-text);
+		border-color: var(--color-muted);
+	}
+
+	/* ── Body ── */
 	.article-content {
-		font-size: var(--font-size-lg);
-		line-height: var(--leading-relaxed);
+		font-size: 18px;
+		line-height: 1.85;
 	}
 
 	.article-content :global(p) {
-		margin-bottom: 1.5em;
+		margin: 0 0 1.15em;
 		unicode-bidi: plaintext;
 	}
 
 	.article-content :global(h2) {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-2xl);
-		font-weight: 500;
-		margin-top: 2.5em;
-		margin-bottom: 0.75em;
+		font-size: 29.2px;
+		font-weight: 700;
+		line-height: 1.38;
+		margin: 2.35em 0 0.55em;
 		scroll-margin-top: calc(var(--nav-height) + var(--spacing-4));
 		unicode-bidi: plaintext;
 	}
 
 	.article-content :global(h3) {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-xl);
-		font-weight: 500;
-		margin-top: 2em;
-		margin-bottom: 0.5em;
+		font-family: var(--ui);
+		font-size: 18px;
+		font-weight: 600;
+		line-height: 1.6;
+		margin: 1.8em 0 0.4em;
 		scroll-margin-top: calc(var(--nav-height) + var(--spacing-4));
 		unicode-bidi: plaintext;
 	}
 
 	.article-content :global(blockquote) {
 		margin: 2em 0;
-		padding: var(--spacing-4) var(--spacing-6);
-		border-inline-start: 3px solid var(--color-accent-muted);
+		padding: var(--spacing-6) 28px;
 		background: var(--color-bg-subtle);
-		border-radius: 0 var(--radius) var(--radius) 0;
+		border-inline-start: 3px solid var(--color-accent);
 		color: var(--color-text-secondary);
-		font-family: var(--font-serif);
-		font-style: italic;
+		font-size: 20px;
+		line-height: 1.7;
+	}
+
+	.article-content :global(blockquote p:last-child) {
+		margin-bottom: 0;
 	}
 
 	.article-content :global(pre) {
-		margin: 2em 0;
+		margin: 1.35em 0;
 		padding: var(--spacing-5);
 		background: var(--color-surface);
-		border: 1px solid var(--color-border);
+		border: 1px solid var(--color-border-subtle);
 		border-radius: var(--radius-lg);
 		overflow-x: auto;
 		font-family: var(--font-mono);
-		font-size: var(--font-size-sm);
-		line-height: 1.6;
+		font-size: 13.5px;
+		line-height: 1.75;
+		color: var(--color-text-secondary);
+		direction: ltr;
+		text-align: left;
 	}
 
 	.article-content :global(code) {
@@ -552,17 +729,16 @@ const publishDate =
 
 	.article-content :global(ul),
 	.article-content :global(ol) {
-		margin-bottom: 1.5em;
-		padding-inline-start: 1.5em;
+		margin: 0 0 1.15em;
+		padding-inline-start: 22px;
 	}
 
 	.article-content :global(li) {
-		margin-bottom: 0.5em;
+		margin-bottom: 0.45em;
 	}
 
 	.article-content :global(img) {
 		margin: 2em 0;
-		border-radius: var(--radius-lg);
 	}
 
 	.article-content :global(hr) {
@@ -577,78 +753,129 @@ const publishDate =
 		text-underline-offset: 3px;
 	}
 
-	.article-sidebar {
-		display: block;
-	}
-
-	.sidebar-sticky {
-		position: sticky;
-		top: calc(var(--nav-height) + var(--spacing-8));
-	}
-
-	.toc {
-		margin-bottom: var(--spacing-8);
-		padding-bottom: var(--spacing-6);
+	/* ── Inline "read also" ── */
+	.read-also {
+		margin-top: 2.45rem;
+		padding: var(--spacing-6) 0;
+		border-top: 1px solid var(--color-border);
 		border-bottom: 1px solid var(--color-border);
 	}
 
-	.toc-title {
-		font-size: var(--font-size-xs);
+	.read-also .rail-label {
+		margin-bottom: var(--spacing-5);
+	}
+
+	.read-also-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-5);
+	}
+
+	.read-also-row {
+		display: flex;
+		gap: var(--spacing-4);
+		align-items: center;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.read-also-thumb {
+		width: 80px;
+		height: 80px;
+		flex-shrink: 0;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
+	}
+
+	.read-also-thumb :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.read-also-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-2);
+		min-width: 0;
+	}
+
+	.read-also-title {
+		font-family: var(--font-serif);
+		font-size: 17.5px;
 		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: var(--tracking-wide);
+		line-height: 1.45;
+		color: var(--color-text);
+		transition: color var(--transition-fast);
+	}
+
+	:global(html[dir="rtl"]) .read-also-title {
+		font-family: var(--font-arabic-heading);
+	}
+
+	.read-also-row:hover .read-also-title {
+		color: var(--color-accent);
+	}
+
+	.read-also-author {
+		font-family: var(--ui);
+		font-size: 11.5px;
+		line-height: 1;
 		color: var(--color-muted);
-		margin-bottom: var(--spacing-3);
+	}
+
+	/* ── TOC ── */
+	.toc {
+		margin-bottom: var(--spacing-8);
 	}
 
 	.toc-content :global(.toc-list) {
 		list-style: none;
 		padding: 0;
 		margin: 0;
-	}
-
-	.toc-content :global(.toc-item) {
-		margin-bottom: var(--spacing-1);
+		border-inline-start: 1px solid var(--color-border);
 	}
 
 	.toc-content :global(.toc-item--nested) {
-		padding-left: var(--spacing-3);
+		padding-inline-start: var(--spacing-3);
 	}
 
 	.toc-content :global(.toc-link) {
 		display: block;
-		font-size: var(--font-size-sm);
-		color: var(--color-muted);
+		padding: 6px 14px;
+		font-family: var(--ui);
+		font-size: 13.5px;
+		line-height: 1.43;
+		color: var(--color-text-secondary);
 		text-decoration: none;
-		padding: var(--spacing-1) 0;
-		transition: color var(--transition-fast);
+		border-inline-start: 1px solid transparent;
+		margin-inline-start: -1px;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
 	}
 
 	.toc-content :global(.toc-link:hover),
 	.toc-content :global(.toc-link.active) {
 		color: var(--color-accent);
+		border-inline-start-color: var(--color-accent);
 	}
 
-	.sidebar-widgets :global(.widget-area) {
+	.rail-end :global(.widget-area) {
 		display: flex;
 		flex-direction: column;
 		gap: var(--spacing-6);
 	}
 
-	.sidebar-widgets :global(.widget) {
-		font-size: var(--font-size-sm);
-	}
-
-	.sidebar-widgets :global(.widget__title) {
+	.rail-end :global(.widget__title) {
+		font-family: var(--ui);
 		font-size: var(--font-size-xs);
 		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: var(--tracking-wide);
 		color: var(--color-muted);
 		margin-bottom: var(--spacing-3);
 	}
 
-	.sidebar-widgets :global(.widget__content) {
+	.rail-end :global(.widget__content) {
+		font-family: var(--ui);
+		font-size: var(--font-size-sm);
 		color: var(--color-text-secondary);
 		line-height: var(--leading-relaxed);
 	}
@@ -659,23 +886,21 @@ const publishDate =
 		border-top: 1px solid var(--color-border);
 	}
 
+	/* ── Related posts ── */
 	.more-posts {
+		margin-top: 5.5rem;
 		background: var(--color-bg-subtle);
-		padding: var(--spacing-16) 0;
-		margin-top: var(--spacing-16);
+		border-top: 1px solid var(--color-border-subtle);
 	}
 
 	.more-inner {
 		max-width: var(--wide-width);
 		margin: 0 auto;
-		padding: 0 var(--spacing-6);
+		padding: var(--spacing-16) var(--spacing-6);
 	}
 
-	.more-title {
-		font-family: var(--font-serif);
-		font-size: var(--font-size-2xl);
-		font-weight: 500;
-		margin-bottom: var(--spacing-10);
+	.more-inner .rail-label {
+		margin-bottom: var(--spacing-8);
 	}
 
 	.more-grid {
@@ -684,29 +909,46 @@ const publishDate =
 		gap: var(--spacing-8);
 	}
 
-	@media (max-width: 1100px) {
+	@media (max-width: 1120px) {
 		.article-grid {
-			grid-template-columns: minmax(0, var(--content-width));
+			grid-template-columns: minmax(0, 760px);
+			justify-content: center;
 			gap: 0;
 		}
 
-		.article-meta-col,
-		.article-sidebar {
+		.rail-start,
+		.rail-end {
 			display: none;
 		}
 
-		.article-header .article-meta {
+		.article-main {
+			grid-column: 1 / -1;
+		}
+
+		.inline-byline {
 			display: flex;
+		}
+
+		.article-title {
+			font-size: 38px;
+		}
+
+		.article-dek {
+			font-size: 19.5px;
 		}
 	}
 
 	@media (max-width: 900px) {
-		.article-hero {
-			margin: var(--spacing-4) var(--spacing-4) var(--spacing-8);
+		.article-cover {
+			padding: var(--spacing-6) var(--spacing-4) 0;
 		}
 
 		.article-grid {
-			padding: 0 var(--spacing-4);
+			padding: var(--spacing-8) var(--spacing-4) 0;
+		}
+
+		.more-inner {
+			padding: var(--spacing-12) var(--spacing-4);
 		}
 
 		.more-grid {
@@ -714,9 +956,13 @@ const publishDate =
 		}
 	}
 
-	@media (max-width: 600px) {
+	@media (max-width: 640px) {
 		.article-title {
-			font-size: var(--font-size-3xl);
+			font-size: 30px;
+		}
+
+		.article-dek {
+			font-size: 18px;
 		}
 
 		.more-grid {
