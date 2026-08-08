@@ -180,9 +180,19 @@ export function generateOpengraph(
   }
 
   // Twitter site handle from settings
-  const twitterUrl = settings.socials.find(
-    (s) => s.includes("twitter.com/") || s.includes("x.com/"),
-  );
+  const twitterUrl = settings.socials.find((s) => {
+    try {
+      const hostname = new URL(s).hostname.toLowerCase();
+      return (
+        hostname === "twitter.com" ||
+        hostname === "www.twitter.com" ||
+        hostname === "x.com" ||
+        hostname === "www.x.com"
+      );
+    } catch {
+      return false;
+    }
+  });
   if (twitterUrl) {
     const handle = twitterUrl.split("/").pop();
     if (handle) {
