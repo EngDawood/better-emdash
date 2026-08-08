@@ -1,7 +1,32 @@
 import type { RouteContext } from "emdash";
 import { PluginRouteError } from "emdash";
-import type { OutputProfile, CreateOutputProfileInput, UpdateOutputProfileInput } from "../types.js";
+import type { OutputProfile, CreateOutputProfileInput, UpdateOutputProfileInput, FieldToken } from "../types.js";
+import { FIELD_TOKENS, RESERVED_PAYLOAD_KEYS } from "../types.js";
 import { outputProfiles, generateId } from "../utils.js";
+
+const FIELD_SLUG_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * A fieldMap key becomes a literal SQL column, so reject anything that is not
+ * a plain identifier here rather than letting it fail at insert time.
+ */
+function validateFieldMap(fieldMap: unknown): void {
+	if (fieldMap === undefined || fieldMap === null) return;
+	if (typeof fieldMap !== "object" || Array.isArray(fieldMap)) {
+		throw PluginRouteError.badRequest("fieldMap must be an object of { field: token }");
+	}
+	for (const [field, token] of Object.entries(fieldMap as Record<string, unknown>)) {
+		if (!FIELD_SLUG_RE.test(field)) {
+			throw PluginRouteError.badRequest(`Invalid field name "${field}" in fieldMap; use letters, digits and underscores`);
+		}
+		if (RESERVED_PAYLOAD_KEYS.has(field)) {
+			throw PluginRouteError.badRequest(`"${field}" is set by the publisher and cannot be mapped`);
+		}
+		if (!FIELD_TOKENS.includes(token as FieldToken)) {
+			throw PluginRouteError.badRequest(`Unknown token "${String(token)}" for field "${field}"; expected one of: ${FIELD_TOKENS.join(", ")}`);
+		}
+	}
+}
 
 export const profileRoutes = {
 	"output-profiles": {
@@ -29,6 +54,7 @@ export const profileRoutes = {
 			if (input.mode === "publish" && !input.collection?.trim()) {
 				throw PluginRouteError.badRequest("collection is required when mode is \"publish\"");
 			}
+			validateFieldMap(input.fieldMap);
 
 			const now = new Date().toISOString();
 			const id = generateId("opf");
@@ -64,6 +90,7 @@ export const profileRoutes = {
 					throw PluginRouteError.badRequest("collection is required when mode is \"publish\"");
 				}
 			}
+			validateFieldMap(updates.fieldMap);
 
 			const updated: OutputProfile = {
 				...existing,

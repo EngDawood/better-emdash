@@ -5,7 +5,8 @@
  */
 
 import type { PluginContext } from "emdash";
-import type { Source, FeedItem, OutputProfile, PluginSettings, Agent } from "./types.js";
+import type { Source, FeedItem, OutputProfile, PluginSettings, Agent, FieldToken } from "./types.js";
+import { RESERVED_PAYLOAD_KEYS } from "./types.js";
 import { agents } from "./utils.js";
 import { slugify, resolveTemplate } from "./template.js";
 import { htmlToPortableText } from "./html-parser.js";
@@ -17,9 +18,24 @@ export interface PublishResult {
 }
 
 /**
+ * Used when a profile declares no fieldMap. Matches the shape EmDash seeds for
+ * `posts`, which is the only collection layout we can assume exists.
+ */
+export const DEFAULT_FIELD_MAP: Record<string, FieldToken> = {
+	content: "body",
+	excerpt: "excerpt",
+};
+
+/**
  * Pure: build the content-entry payload from a profile + item + source.
  * `outputsByAgentName` maps each custom agent's NAME to its produced text,
  * making it available as `{output.<agentName>}` in the footer template.
+ *
+ * The returned object contains ONLY keys that are safe to write: the payload
+ * keys EmDash consumes itself (`slug`, `status`, `publishedAt`, `seo`), the
+ * always-present `title`, and whatever the profile's fieldMap names. Every
+ * other key would become a literal SQL column — see the note on
+ * `OutputProfile.fieldMap`.
  */
 export function buildPublishPayload(opts: {
 	source: Source;
@@ -89,17 +105,9 @@ export function buildPublishPayload(opts: {
 			break;
 	}
 
-	// ── Meta & SEO ────────────────────────────────────────────────────────
-	const meta: Record<string, unknown> = {
-		rssSourceId: item.sourceId,
-		rssSourceUrl: source.url,
-		rssGuid: item.guid,
-	};
-	if (item.enclosure !== undefined) meta.rssEnclosure = item.enclosure;
-	if (item.audioUrl !== undefined) meta.rssAudioUrl = item.audioUrl;
-	if (item.youtubeVideoId !== undefined) meta.rssYoutubeId = item.youtubeVideoId;
-	if (item.mediaType !== undefined) meta.rssMediaType = item.mediaType;
-
+	// ── SEO ───────────────────────────────────────────────────────────────
+	// EmDash splits `seo` out of the payload before touching columns, so it is
+	// always safe to send regardless of the target collection's fields.
 	const seo = {
 		title: item.title,
 		description: excerpt ?? item.summary ?? item.excerpt ?? "",
@@ -112,64 +120,120 @@ export function buildPublishPayload(opts: {
 	const payload: Record<string, unknown> = {
 		title: item.title,
 		slug,
-		content: htmlToPortableText(finalBody),
 		status: profile.status,
 		publishedAt: item.publishedAt,
-		meta,
 		seo,
 	};
 
-	if (excerpt !== undefined) payload.excerpt = excerpt;
-	if (item.author?.name !== undefined) payload.author = item.author.name;
-	const categories: string[] = [];
-	if (profile.defaultCategories && Array.isArray(profile.defaultCategories)) {
-		categories.push(...profile.defaultCategories);
-	}
-	if (profile.mapFeedCategories !== false) {
-		if (sourceSlug) categories.push(sourceSlug);
-	}
-	if (categories.length > 0) {
-		payload.categories = Array.from(new Set(categories));
-	}
+	const fieldMap =
+		profile.fieldMap && Object.keys(profile.fieldMap).length > 0
+			? profile.fieldMap
+			: DEFAULT_FIELD_MAP;
 
-	// ── Custom Fields & Generic Schema Aliases ────────────────────────────
-	const data: Record<string, unknown> = {
-		title: item.title,
-	};
-
-	if (item.customFields) {
-		for (const [key, val] of Object.entries(item.customFields)) {
-			if (typeof val === "string" && (/<[a-z][\s\S]*>/i.test(val) || key.includes("description") || key.includes("content"))) {
-				data[key] = htmlToPortableText(val);
-				payload[key] = data[key];
-			} else {
-				data[key] = val;
-				payload[key] = val;
-			}
-		}
+	for (const [field, token] of Object.entries(fieldMap)) {
+		if (RESERVED_PAYLOAD_KEYS.has(field)) continue;
+		const value = resolveFieldToken(token, field, { source, item, finalBody, excerpt });
+		if (value !== undefined) payload[field] = value;
 	}
-
-	// Dynamic schema fallback aliases for custom collections (e.g. jobs, events)
-	if (data.job_descriptions === undefined) {
-		data.job_descriptions = htmlToPortableText(finalBody);
-		payload.job_descriptions = data.job_descriptions;
-	}
-	if (data.original_url === undefined) {
-		data.original_url = item.url;
-		payload.original_url = data.original_url;
-	}
-	if (data.deadline === undefined) {
-		data.deadline = item.publishedAt;
-		payload.deadline = data.deadline;
-	}
-	if (data.job_posting === undefined) {
-		data.job_posting = item.publishedAt;
-		payload.job_posting = data.job_posting;
-	}
-
-	payload.data = data;
 
 	return payload;
+}
+
+/** Pure: produce the value a single mapped field should receive. */
+function resolveFieldToken(
+	token: FieldToken,
+	field: string,
+	v: { source: Source; item: FeedItem; finalBody: string; excerpt: string | undefined },
+): unknown {
+	switch (token) {
+		case "body":
+			return htmlToPortableText(v.finalBody);
+		case "summary":
+			return v.item.summary === undefined ? undefined : htmlToPortableText(v.item.summary);
+		case "excerpt":
+			return v.excerpt;
+		case "url":
+			return v.item.url;
+		case "image":
+			return v.item.imageUrl;
+		case "publishedAt":
+			return v.item.publishedAt;
+		case "author":
+			return v.item.author?.name;
+		case "sourceName":
+			return v.source.name;
+		case "customField":
+			return v.item.customFields?.[field];
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Categories are configurable on a profile but cannot be written from here:
+ * `ctx.taxonomies` is read-only and `ctx.content.create` has no term handling.
+ * Say so once per isolate rather than dropping them in silence.
+ */
+let categoryNoticeLogged = false;
+
+function noteUnassignableCategories(ctx: PluginContext, profile: OutputProfile): void {
+	if (categoryNoticeLogged) return;
+	const wanted = (profile.defaultCategories?.length ?? 0) > 0 || profile.mapFeedCategories !== false;
+	if (!wanted) return;
+	categoryNoticeLogged = true;
+	ctx.log.info(
+		"Categories are configured on an output profile but cannot be assigned: EmDash exposes no plugin-facing taxonomy write API. Published entries will have no terms.",
+		{ profile: profile.name, collection: profile.collection },
+	);
+}
+
+/**
+ * Create or update a content entry, stripping unknown columns as a last
+ * resort so one bad field cannot lose the whole entry.
+ *
+ * This is a safety net, not the mechanism: a correct `fieldMap` should never
+ * reach it. Anything it strips is logged, because a silent strip is how the
+ * jobs profile lost every write for six weeks.
+ */
+export async function writeContentEntry(
+	ctx: PluginContext,
+	collection: string,
+	payload: Record<string, unknown>,
+	existingId?: string,
+): Promise<{ contentId?: string; created: boolean }> {
+	// Without these the entry is meaningless, so a failure on them is fatal.
+	const required = new Set(["title", "slug"]);
+	let cur = { ...payload };
+	const stripped = new Set<string>();
+
+	while (true) {
+		try {
+			if (existingId) {
+				await ctx.content!.update!(collection, existingId, cur);
+				return { contentId: existingId, created: false };
+			}
+			const entry = await ctx.content!.create!(collection, cur);
+			return { contentId: entry?.id, created: true };
+		} catch (err) {
+			const errMsg = String(err);
+			const match =
+				errMsg.match(/has no column named ([a-zA-Z0-9_]+)/i) ||
+				errMsg.match(/no such column:?\s*(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i);
+			const field = match?.[1];
+
+			if (!field || required.has(field) || stripped.has(field) || !(field in cur)) {
+				throw err;
+			}
+
+			stripped.add(field);
+			delete cur[field];
+			ctx.log.warn("Dropped a field the target collection has no column for", {
+				collection,
+				field,
+				hint: "Remove it from the output profile's field map, or add the field to the collection.",
+			});
+		}
+	}
 }
 
 /**
@@ -210,58 +274,16 @@ export async function publishItem(
 		const payload = buildPublishPayload({ source, item, profile, outputsByAgentName });
 
 		// ── Guard: content API must be available ──────────────────────────
-		if (!ctx.content) {
-			return { action: "skipped", error: "no content access" };
+		if (!ctx.content?.create || !ctx.content?.update) {
+			return { action: "skipped", error: "no content write access" };
 		}
 
-		// ── Helper for operations with dynamic missing column recovery ─────
-		const executeWithFallback = async <T>(
-			op: (p: Record<string, unknown>) => Promise<T>
-		): Promise<T> => {
-			let cur = { ...payload };
-			const stripped = new Set<string>();
-			while (true) {
-				try {
-					return await op(cur);
-				} catch (err) {
-					const errMsg = String(err);
-					const match =
-						errMsg.match(/has no column named ([a-zA-Z0-9_]+)/i) ||
-						errMsg.match(/no such column:?\s*(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i);
-
-					let fieldToStrip: string | null = null;
-					if (match && match[1]) {
-						fieldToStrip = match[1];
-					} else if (errMsg.includes("categories") && "categories" in cur) {
-						fieldToStrip = "categories";
-					}
-
-					if (fieldToStrip && !stripped.has(fieldToStrip)) {
-						const protectedFields = new Set(["title", "slug", "data", "job_descriptions", "original_url", "deadline", "job_posting"]);
-						if (!protectedFields.has(fieldToStrip)) {
-							stripped.add(fieldToStrip);
-							delete cur[fieldToStrip];
-							if (cur.data && typeof cur.data === "object") {
-								delete (cur.data as Record<string, unknown>)[fieldToStrip];
-							}
-							continue;
-						}
-					}
-					throw err;
-				}
-			}
-		};
+		noteUnassignableCategories(ctx, profile);
 
 		// ── Create or update ──────────────────────────────────────────────
-		let contentId = existingContentId;
-		let action: "created" | "updated" = "updated";
-		if (existingContentId) {
-			await executeWithFallback((p) => ctx.content!.update!(profile.collection, existingContentId, p));
-		} else {
-			const entry = await executeWithFallback((p) => ctx.content!.create!(profile.collection, p));
-			contentId = entry?.id;
-			action = "created";
-		}
+		const written = await writeContentEntry(ctx, profile.collection, payload, existingContentId);
+		const contentId = written.contentId;
+		const action: "created" | "updated" = written.created ? "created" : "updated";
 
 		if (contentId && profile.status === "published" && (ctx.content as any).publish) {
 			try {

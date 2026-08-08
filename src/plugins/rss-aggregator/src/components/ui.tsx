@@ -209,16 +209,17 @@ export function Input({ label, value, onChange, placeholder, description, type =
 	);
 }
 
-export function TextArea({ label, value, onChange, rows = 4, placeholder }: {
+export function TextArea({ label, value, onChange, rows = 4, placeholder, description }: {
 	label?: string;
 	value: string;
 	onChange: (val: string) => void;
 	rows?: number;
 	placeholder?: string;
+	description?: string;
 }) {
 	return (
 		<div>
-			<FieldLabel label={label} />
+			<FieldLabel label={label} description={description} />
 			<textarea value={value} rows={rows} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={{ ...INPUT_BASE, resize: "vertical" }} />
 		</div>
 	);

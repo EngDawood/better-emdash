@@ -383,6 +383,55 @@ export interface Agent {
 	updatedAt: string;
 }
 
+/**
+ * A value the publisher can produce for one field of the target collection.
+ *
+ * `customField` reads `item.customFields[<the mapped field slug>]`, which is
+ * how a source's Custom Mapping reaches a real column.
+ */
+export type FieldToken =
+	| "body"
+	| "summary"
+	| "excerpt"
+	| "url"
+	| "image"
+	| "publishedAt"
+	| "author"
+	| "sourceName"
+	| "customField";
+
+export const FIELD_TOKENS: FieldToken[] = [
+	"body",
+	"summary",
+	"excerpt",
+	"url",
+	"image",
+	"publishedAt",
+	"author",
+	"sourceName",
+	"customField",
+];
+
+/**
+ * Payload keys the publisher always owns. A profile's fieldMap may not target
+ * them — `slug`/`status`/`publishedAt` are consumed by EmDash's write API and
+ * the rest are system columns.
+ */
+export const RESERVED_PAYLOAD_KEYS = new Set([
+	"id",
+	"title",
+	"slug",
+	"status",
+	"seo",
+	"publishedAt",
+	"createdAt",
+	"updatedAt",
+	"locale",
+	"authorId",
+	"primaryBylineId",
+	"translationOf",
+]);
+
 /** A saved output profile — stored in the `outputProfiles` storage collection. */
 export interface OutputProfile {
 	name: string;
@@ -406,6 +455,14 @@ export interface OutputProfile {
 	defaultCategories?: string[];
 	/** Whether to dynamically map feed categories / sourceSlug to EmDash taxonomy terms. */
 	mapFeedCategories?: boolean;
+	/**
+	 * Target-collection field slug → value token.
+	 *
+	 * EmDash turns every payload key into a literal SQL column, so each key
+	 * here MUST be a real field on `collection` or the whole insert fails.
+	 * Omit to get {@link DEFAULT_FIELD_MAP} (the stock `posts` shape).
+	 */
+	fieldMap?: Record<string, FieldToken>;
 	createdAt: string;
 	updatedAt: string;
 }

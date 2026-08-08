@@ -21,7 +21,7 @@ import { fetchFullText } from "./full-text.js";
 import { importImages } from "./image-importer.js";
 import { applyFieldMappings } from "./field-mapper.js";
 import { applyAgents } from "./ai-service.js";
-import { publishItem } from "./output.js";
+import { publishItem, writeContentEntry } from "./output.js";
 import { generateId, outputProfiles } from "./utils.js";
 import { htmlToPortableText } from "./html-parser.js";
 import type { OutputProfile } from "./types.js";
@@ -97,6 +97,8 @@ export async function fetchAndImportFeed(
 	let itemsRejected = 0;
 	let itemsUpdated = 0;
 	let feedTitle: string | undefined;
+	/** Items that imported into storage but never reached the CMS. */
+	const cmsFailures: string[] = [];
 
 	// Type cast collections
 	const rejectList = ctx.storage.rejectList as StorageCollection<RejectListEntry>;
@@ -317,11 +319,15 @@ export async function fetchAndImportFeed(
 				customFields: Object.keys(customFields).length ? customFields : undefined,
 			};
 
-			// Content entry payload: custom-mapped fields are promoted to top-level
-			// so they can map onto collection fields.
+			// Content entry payload. Every key here becomes a literal SQL column
+			// on the target collection, so keep it to the stock entry shape plus
+			// whatever the source's Custom Mapping produced — unknown columns are
+			// stripped (and logged) by writeContentEntry rather than losing the row.
 			const contentPayload: Record<string, unknown> = {
-				...feedItemData,
-				...customFields,
+				title: parsed.title,
+				status: "published",
+				publishedAt: parsed.pubDate || now,
+				content: htmlToPortableText(content),
 				seo: {
 					title: parsed.title,
 					description: excerpt,
@@ -331,56 +337,22 @@ export async function fetchAndImportFeed(
 				},
 			};
 
-			const data: Record<string, unknown> = {
-				title: parsed.title,
-			};
-
-			if (customFields) {
-				for (const [key, val] of Object.entries(customFields)) {
-					if (typeof val === "string" && (/<[a-z][\s\S]*>/i.test(val) || key.includes("description") || key.includes("content"))) {
-						data[key] = htmlToPortableText(val);
-						contentPayload[key] = data[key];
-					} else {
-						data[key] = val;
-						contentPayload[key] = val;
-					}
+			for (const [key, val] of Object.entries(customFields)) {
+				if (typeof val === "string" && (/<[a-z][\s\S]*>/i.test(val) || key.includes("description") || key.includes("content"))) {
+					contentPayload[key] = htmlToPortableText(val);
+				} else {
+					contentPayload[key] = val;
 				}
 			}
-
-			if (data.job_descriptions === undefined) {
-				data.job_descriptions = htmlToPortableText(content);
-				contentPayload.job_descriptions = data.job_descriptions;
-			}
-			if (data.original_url === undefined) {
-				data.original_url = parsed.link;
-				contentPayload.original_url = data.original_url;
-			}
-			if (data.deadline === undefined) {
-				data.deadline = parsed.pubDate || now;
-				contentPayload.deadline = data.deadline;
-			}
-			if (data.job_posting === undefined) {
-				data.job_posting = parsed.pubDate || now;
-				contentPayload.job_posting = data.job_posting;
-			}
-
-			contentPayload.data = data;
-			contentPayload.status = "published";
 
 			let targetItemId = existing ? existing.id : generateId("itm");
 			let contentId = existing?.contentId;
 
 			// Write content entry
-			if (ctx.content) {
+			if (ctx.content?.create && ctx.content?.update) {
 				try {
-					if (contentId) {
-						// Update CMS entry
-						await ctx.content.update?.(collectionName, contentId, contentPayload);
-					} else {
-						// Create CMS entry
-						const contentEntry = await ctx.content.create?.(collectionName, contentPayload);
-						contentId = contentEntry?.id;
-					}
+					const written = await writeContentEntry(ctx, collectionName, contentPayload, contentId);
+					contentId = written.contentId;
 					if (contentId && (ctx.content as any).publish) {
 						try {
 							await (ctx.content as any).publish(collectionName, contentId, { publishedAt: contentPayload.publishedAt });
@@ -389,7 +361,9 @@ export async function fetchAndImportFeed(
 						}
 					}
 				} catch (contentErr) {
-					ctx.log.warn("Failed to sync content entry for feed item", { guid: parsed.guid, error: String(contentErr) });
+					const msg = String(contentErr);
+					cmsFailures.push(`sync "${parsed.title}" → ${collectionName}: ${msg}`);
+					ctx.log.warn("Failed to sync content entry for feed item", { guid: parsed.guid, error: msg });
 				}
 			}
 
@@ -406,6 +380,7 @@ export async function fetchAndImportFeed(
 				});
 				if (result.action === "created") publishedContentId = result.contentId;
 				else if (result.action === "skipped") {
+					cmsFailures.push(`publish "${parsed.title}" → ${profile.collection}: ${result.error || "unknown reason"}`);
 					ctx.log.warn("Publish skipped", { guid: parsed.guid, error: result.error });
 				}
 			}
@@ -498,12 +473,18 @@ export async function fetchAndImportFeed(
 		const log: ImportLog = {
 			sourceId,
 			sourceName: source.name,
-			status: "success",
+			status: cmsFailures.length > 0 ? "partial" : "success",
 			itemsFound,
 			itemsImported,
 			itemsSkipped,
 			itemsRejected,
 			itemsUpdated,
+			// A CMS write that fails leaves the item in plugin storage but invisible
+			// on the site. Report it here — a log-only warning went unnoticed for weeks.
+			error:
+				cmsFailures.length > 0
+					? `${cmsFailures.length} item(s) did not reach the CMS. First: ${cmsFailures[0]}`
+					: undefined,
 			duration,
 			feedTitle,
 			feedUrl: source.url,
@@ -511,7 +492,7 @@ export async function fetchAndImportFeed(
 		};
 		await importLogs.put(logId, log);
 
-		ctx.log.info("Finished feed import", { sourceId, name: source.name, imported: itemsImported, duration });
+		ctx.log.info("Finished feed import", { sourceId, name: source.name, imported: itemsImported, cmsFailures: cmsFailures.length, duration });
 		return log;
 	} catch (err: any) {
 		const duration = Date.now() - start;

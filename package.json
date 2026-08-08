@@ -14,7 +14,8 @@
     "preview": "astro preview",
     "deploy": "astro build && wrangler deploy --config wrangler.prod.jsonc",
     "bootstrap": "npx emdash init && npx emdash seed seed/seed.json",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.0",
@@ -63,6 +64,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "semantic-release": "^25.0.5",
+    "vitest": "3.2.4",
     "wrangler": "4.81.1"
   },
   "pnpm": {

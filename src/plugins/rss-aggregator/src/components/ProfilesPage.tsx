@@ -15,7 +15,34 @@ import {
 	Loading,
 	ConfirmDialog,
 } from "./ui";
-import type { OutputProfile } from "../types";
+import type { OutputProfile, FieldToken } from "../types";
+import { FIELD_TOKENS } from "../types";
+
+/** "field = token" per line ⇄ OutputProfile.fieldMap. */
+function fieldMapToText(map: OutputProfile["fieldMap"]): string {
+	if (!map) return "";
+	return Object.entries(map)
+		.map(([field, token]) => `${field} = ${token}`)
+		.join("\n");
+}
+
+function parseFieldMap(text: string): { map: Record<string, FieldToken>; error: string | null } {
+	const map: Record<string, FieldToken> = {};
+	for (const raw of text.split("\n")) {
+		const line = raw.trim();
+		if (!line || line.startsWith("#")) continue;
+		const eq = line.indexOf("=");
+		if (eq === -1) return { map, error: `Line "${line}" is not "field = token".` };
+		const field = line.slice(0, eq).trim();
+		const token = line.slice(eq + 1).trim();
+		if (!field) return { map, error: `Missing field name in "${line}".` };
+		if (!FIELD_TOKENS.includes(token as FieldToken)) {
+			return { map, error: `Unknown token "${token}". Use one of: ${FIELD_TOKENS.join(", ")}.` };
+		}
+		map[field] = token as FieldToken;
+	}
+	return { map, error: null };
+}
 
 export const ProfilesPage: React.FC = () => {
 	const api = usePluginAPI();
@@ -25,7 +52,7 @@ export const ProfilesPage: React.FC = () => {
 
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editing, setEditing] = useState<({ id: string } & OutputProfile) | null>(null);
-	const [form, setForm] = useState<Partial<OutputProfile> & { defaultCategoriesText?: string }>({});
+	const [form, setForm] = useState<Partial<OutputProfile> & { defaultCategoriesText?: string; fieldMapText?: string }>({});
 	const [formError, setFormError] = useState<string | null>(null);
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -61,6 +88,7 @@ export const ProfilesPage: React.FC = () => {
 			defaultCategories: [],
 			defaultCategoriesText: "",
 			mapFeedCategories: true,
+			fieldMapText: "content = body\nexcerpt = excerpt",
 		});
 		setFormError(null);
 		setIsModalOpen(true);
@@ -71,6 +99,7 @@ export const ProfilesPage: React.FC = () => {
 		setForm({
 			...p,
 			defaultCategoriesText: p.defaultCategories ? p.defaultCategories.join(", ") : "",
+			fieldMapText: fieldMapToText(p.fieldMap),
 		});
 		setFormError(null);
 		setIsModalOpen(true);
@@ -88,6 +117,12 @@ export const ProfilesPage: React.FC = () => {
 			return;
 		}
 
+		const { map: fieldMap, error: fieldMapError } = parseFieldMap(form.fieldMapText || "");
+		if (fieldMapError) {
+			setFormError(fieldMapError);
+			return;
+		}
+
 		const categoriesArray = form.defaultCategoriesText
 			? form.defaultCategoriesText.split(",").map((c) => c.trim()).filter(Boolean)
 			: form.defaultCategories || [];
@@ -95,8 +130,10 @@ export const ProfilesPage: React.FC = () => {
 		const payload: Partial<OutputProfile> = {
 			...form,
 			defaultCategories: categoriesArray,
+			fieldMap,
 		};
 		delete (payload as any).defaultCategoriesText;
+		delete (payload as any).fieldMapText;
 
 		try {
 			if (editing) {
@@ -212,6 +249,19 @@ export const ProfilesPage: React.FC = () => {
 									{ label: "None", value: "none" },
 								]}
 							/>
+							<TextArea
+								label="Field map (one “field = token” per line)"
+								value={form.fieldMapText || ""}
+								onChange={(v) => setForm((p) => ({ ...p, fieldMapText: v }))}
+								rows={5}
+								placeholder={"content = body\nexcerpt = excerpt"}
+								description={`Every field named here is written as a column on the target collection, so each must exist on it. Tokens: ${FIELD_TOKENS.join(", ")}. Leave empty for "content = body, excerpt = excerpt". title, slug, status, publishedAt and seo are always written.`}
+							/>
+							<Alert variant="warning" title="Categories are not assigned yet">
+								EmDash gives plugins read-only taxonomy access, so the two settings below are
+								stored but never applied — published entries get no terms. Assign them in the
+								CMS for now.
+							</Alert>
 							<Input
 								label="Default Categories (comma-separated IDs or slugs)"
 								value={form.defaultCategoriesText || ""}
