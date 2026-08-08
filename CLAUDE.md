@@ -83,6 +83,7 @@ All plugins are configured in `astro.config.mjs`. A plugin's type is set by its 
 | `rssAggregatorPlugin()` | `src/plugins/rss-aggregator/` (local) | RSS/Atom feed aggregator; uses EmDash plugin storage (no extra D1 needed) |
 | `aiModerationPlugin()` | `@emdash-cms/plugin-ai-moderation` | AI comment moderation (requires `AI` binding) |
 | `emdash-inbox` inline descriptor | `src/plugins/emdash-inbox/` (local) | Email inbox + transport (`email:provide`, `email:intercept`, email-transport/email-events hooks) |
+| `jobs-board` inline descriptor | `src/plugins/jobs-board/` (local) | Syncs the external jobs Worker API into plugin storage hourly; serves `/jobs` and `/en/jobs` |
 
 **Sandboxed plugins** (`sandboxed: []`):
 
@@ -115,7 +116,8 @@ Header uses an Editorial Monogram mark (`Ds·` SVG) + wordmark. Footer includes 
 Local dev uses `.dev.vars` (not committed). Required vars:
 - `EMDASH_TOKEN` — Bearer token for MCP endpoint auth
 - `EMDASH_URL` — (optional) override base URL for EmDashClient (defaults to `https://engdawood.com`)
-- `JOBS_API_URL` — Base URL for the external jobs Worker API (e.g. `https://yemen-hr-worker.engdawood.workers.dev`)
+
+The jobs Worker API base URL is **not** an env var — it is a `jobs-board` plugin setting (KV `settings:apiBaseUrl`), editable at `/_emdash/admin` → Jobs → Settings.
 
 
 ## Reference Files (`.claude/`)
