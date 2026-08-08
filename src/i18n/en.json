@@ -53,6 +53,11 @@
 		"tags": "Tags",
 		"onThisPage": "On this page",
 		"continueReading": "Continue reading",
+		"readAlso": "Read also",
+		"related": "Related posts",
+		"share": "Share",
+		"linkCopied": "Link copied",
+		"updated": "Last updated",
 		"empty": "No posts posted yet."
 	},
 	"about": {
@@ -179,8 +184,14 @@
 	},
 	"project": {
 		"viewWork": "View Project",
-		"viewLive": "Visit Site",
+		"viewLive": "Live site",
 		"moreWork": "Other projects",
+		"kicker": "Project",
+		"year": "Year",
+		"client": "Client",
+		"stack": "Stack",
+		"ctaText": "Want something like this for your team? I usually ship a first version within two weeks.",
+		"ctaButton": "Get in touch",
 		"noProjects": "No projects found.",
 		"viewAll": "View all projects"
 	},
