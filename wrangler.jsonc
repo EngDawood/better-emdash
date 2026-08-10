@@ -35,10 +35,10 @@
 	],
 	
   "observability": {
-    "enabled": false,
+    "enabled": true,
     "head_sampling_rate": 1,
     "logs": {
-      "enabled": false,
+      "enabled": true,
       "head_sampling_rate": 1,
       "persist": true,
       "invocation_logs": true
@@ -66,8 +66,7 @@
 	],
 	"services": [
 		{ "binding": "SELF", "service": "dawood-emdash" }
-	]
-	,
+	],
 	"worker_loaders": [
 		{
 			"binding": "LOADER",

@@ -37,6 +37,10 @@
 			"preview_bucket_name": "my-emdash-media",
 		}
 	],
+		"send_email": [
+		{ "name": "EMAIL", "remote": true }
+	],
+	
 	"observability": {
 		"enabled": true,
 		"head_sampling_rate": 0.1,
@@ -68,9 +72,6 @@
 	],
 	"services": [
 		{ "binding": "SELF", "service": "dawood-emdash" }
-	],
-	"send_email": [
-		{ "name": "EMAIL", "remote": true }
 	],
 	"worker_loaders": [
 		{

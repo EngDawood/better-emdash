@@ -1,5 +1,5 @@
 ---
 // Legacy route — redirect to the default locale's project page
 const { slug } = Astro.params;
-return Astro.redirect(`/ar/projects/${slug}`, 301);
+return Astro.redirect(`/ar/projects/${slug}${Astro.url.search}`, 301);
 ---

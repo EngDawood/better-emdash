@@ -1,5 +1,5 @@
 ---
 // Redirect to default locale
 const { slug } = Astro.params;
-return Astro.redirect(`/ar/tag/${slug}`, 302);
+return Astro.redirect(`/ar/tag/${slug}${Astro.url.search}`, 302);
 ---
