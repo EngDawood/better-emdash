@@ -1,0 +1,63 @@
+---
+/**
+ * Renders a `customBlock` Portable Text node from the `custom-blocks` plugin.
+ *
+ * The plugin ships no Astro component of its own (its README points at a
+ * `/astro` subpath that isn't in the package exports), so the block's HTML and
+ * CSS are pulled from its public `render` route here. As in JobsBoard, the
+ * route is dispatched in-process through `Astro.locals.emdash` rather than
+ * fetched over HTTP, so rendering never makes a same-Worker subrequest.
+ *
+ * The node's `id` holds the block slug -- the plugin's `blockOptions` route
+ * populates the editor dropdown with slugs, not ULIDs.
+ */
+import { getPublicPluginApiRouteHandler } from "emdash/plugin-utils";
+
+interface Props {
+	node: { id?: string };
+}
+
+const { node } = Astro.props;
+
+let html: string | null = null;
+let css: string | null = null;
+let slug: string | null = null;
+
+const dispatch = getPublicPluginApiRouteHandler(Astro.locals);
+
+if (dispatch && node.id) {
+	const routeUrl = new URL("/_emdash/api/plugins/custom-blocks/render", Astro.url);
+
+	// The route throws for missing, draft, or unpublished blocks; `success` is
+	// false in those cases and the block renders as nothing rather than an error.
+	const result = await dispatch(
+		"custom-blocks",
+		"POST",
+		"/render",
+		new Request(routeUrl, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id: node.id }),
+		}),
+	);
+
+	if (result.success && result.data) {
+		const data = result.data as { html?: string; css?: string; slug?: string };
+		html = data.html ?? null;
+		css = data.css ?? null;
+		slug = data.slug ?? null;
+	}
+}
+---
+
+{
+	html && slug && (
+		<>
+			{/* Same scoping the plugin's own embed snippet uses: the saved CSS is
+			    nested under the block's `.cb-{slug}` wrapper. `is:inline` keeps
+			    Astro from hoisting and scoping this as a component stylesheet. */}
+			{css && <style is:inline set:html={`.cb-${slug} { ${css} }`} />}
+			<div class:list={["custom-block", `cb-${slug}`]} set:html={html} />
+		</>
+	)
+}

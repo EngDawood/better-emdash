@@ -2,6 +2,7 @@
 import { getEmDashEntry, getEmDashCollection, getEntryTerms } from "emdash";
 import { Image, PortableText } from "emdash/ui";
 import Base from "../../../layouts/Base.astro";
+import CustomBlock from "../../../components/CustomBlock.astro";
 import ProjectCard from "../../../components/ProjectCard.astro";
 import { locales, type Locale, defaultLocale, t } from "../../../i18n/utils";
 
@@ -152,7 +153,10 @@ const coverAlt = project.data.featured_image?.alt;
 				</header>
 
 				<div class="project-content" dir="auto">
-					<PortableText value={project.data.content} />
+					<PortableText
+						value={project.data.content}
+						components={{ type: { customBlock: CustomBlock } }}
+					/>
 				</div>
 
 				{

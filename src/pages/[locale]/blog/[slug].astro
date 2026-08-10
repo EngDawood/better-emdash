@@ -16,6 +16,7 @@ import {
 	WidgetArea,
 } from "emdash/ui";
 import Base from "../../../layouts/Base.astro";
+import CustomBlock from "../../../components/CustomBlock.astro";
 import PostCard from "../../../components/PostCard.astro";
 import NewsletterSignup from "../../../components/NewsletterSignup.astro";
 import { getReadingTime } from "../../../utils/reading-time";
@@ -256,7 +257,10 @@ const coverAlt = post.data.featured_image?.alt;
 				</header>
 
 				<div class="article-content" dir="auto">
-					<PortableText value={post.data.content} />
+					<PortableText
+						value={post.data.content}
+						components={{ type: { customBlock: CustomBlock } }}
+					/>
 				</div>
 
 				{
