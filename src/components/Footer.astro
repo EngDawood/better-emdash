@@ -1,13 +1,42 @@
 ---
-import { t, homePath, type Locale } from "../i18n/utils";
+import type { Menu } from "emdash";
+import { t, homePath, localizeMenuHref, type Locale } from "../i18n/utils";
 
 interface Props {
 	locale: Locale;
 	siteTitle: string;
-	pages: any[];
+	/** EmDash "footer" menu. Falls back to hardcoded links when absent or empty. */
+	menu?: Menu | null;
 }
 
-const { locale, siteTitle, pages } = Astro.props;
+const { locale, siteTitle, menu } = Astro.props;
+
+interface NavLink {
+	href: string;
+	label: string;
+	target?: string;
+	titleAttr?: string;
+	cssClasses?: string;
+}
+
+const fallbackLinks: NavLink[] = [
+	{ href: homePath(locale), label: t("nav.home", locale) },
+	{ href: `/${locale}/projects`, label: t("nav.projects", locale) },
+	{ href: `/${locale}/blog`, label: t("nav.blog", locale) },
+	{ href: `/${locale}/jobs`, label: t("nav.jobs", locale) },
+	{ href: `/${locale}/faq`, label: t("nav.faq", locale) },
+];
+
+// Top level only — the footer has no dropdown UI, so child items are ignored.
+const navLinks: NavLink[] = menu?.items?.length
+	? menu.items.map((item) => ({
+			href: localizeMenuHref(item.url, locale),
+			label: item.label,
+			target: item.target,
+			titleAttr: item.titleAttr,
+			cssClasses: item.cssClasses,
+		}))
+	: fallbackLinks;
 ---
 
 <footer class="site-footer">
@@ -29,14 +58,17 @@ const { locale, siteTitle, pages } = Astro.props;
 			<div class="footer-nav">
 				<h4 class="footer-heading">{t("footer.nav", locale)}</h4>
 				<ul class="footer-links">
-					<li><a href={homePath(locale)}>{t("nav.home", locale)}</a></li>
-					<li><a href={`/${locale}/projects`}>{t("nav.projects", locale)}</a></li>
-					<li><a href={`/${locale}/blog`}>{t("nav.blog", locale)}</a></li>
 					{
-						pages.slice(0, 2).map((page) => (
+						navLinks.map((link) => (
 							<li>
-								<a href={`/${locale}/pages/${page.data.slug || page.id}`}>
-									{page.data.title}
+								<a
+									href={link.href}
+									class={link.cssClasses}
+									target={link.target}
+									rel={link.target === "_blank" ? "noopener" : undefined}
+									title={link.titleAttr}
+								>
+									{link.label}
 								</a>
 							</li>
 						))

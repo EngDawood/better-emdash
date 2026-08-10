@@ -1,6 +1,6 @@
 ---
 import type { Menu } from "emdash";
-import { t, locales, homePath, type Locale } from "../i18n/utils";
+import { t, homePath, localizeMenuHref, type Locale } from "../i18n/utils";
 import LiveSearch from "emdash/ui/search";
 import LanguageSwitcher from "./LanguageSwitcher.astro";
 
@@ -28,37 +28,10 @@ const fallbackLinks: NavLink[] = [
 	{ href: `${homePath(locale)}#contact`, label: t("nav.contact", locale) },
 ];
 
-/**
- * EmDash resolves menu URLs without a locale prefix (`/projects`), which redirects
- * to the default locale — so an English visitor would land on Arabic pages.
- * Re-point internal links at the locale being rendered.
- */
-function localizeMenuHref(href: string): string {
-	// External, protocol-relative, mailto/tel and bare anchors pass through
-	if (!href.startsWith("/") || href.startsWith("//")) return href;
-
-	const [beforeHash, ...hashRest] = href.split("#");
-	const hash = hashRest.length ? `#${hashRest.join("#")}` : "";
-	const [path, query] = beforeHash.split("?");
-	const segments = path.split("/").filter(Boolean);
-
-	if (segments.length && locales.includes(segments[0] as Locale)) {
-		segments[0] = locale;
-	} else {
-		segments.unshift(locale);
-	}
-
-	// The default locale homepage is served unprefixed at `/`
-	const localizedPath =
-		segments.length === 1 && segments[0] === locale ? homePath(locale) : `/${segments.join("/")}`;
-
-	return `${localizedPath}${query ? `?${query}` : ""}${hash}`;
-}
-
 // Top level only — the nav has no dropdown UI, so child items are ignored.
 const navLinks: NavLink[] = menu?.items?.length
 	? menu.items.map((item) => ({
-			href: localizeMenuHref(item.url),
+			href: localizeMenuHref(item.url, locale),
 			label: item.label,
 			target: item.target,
 			titleAttr: item.titleAttr,

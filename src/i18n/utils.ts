@@ -84,6 +84,34 @@ export function homePath(locale: Locale): string {
 }
 
 /**
+ * Re-point an EmDash menu URL at the locale being rendered.
+ *
+ * EmDash resolves menu URLs without a locale prefix (`/projects`), which redirects
+ * to the default locale — so an English visitor would land on Arabic pages.
+ * External, protocol-relative, mailto/tel and bare anchor hrefs pass through.
+ */
+export function localizeMenuHref(href: string, locale: Locale): string {
+	if (!href.startsWith("/") || href.startsWith("//")) return href;
+
+	const [beforeHash, ...hashRest] = href.split("#");
+	const hash = hashRest.length ? `#${hashRest.join("#")}` : "";
+	const [path, query] = beforeHash.split("?");
+	const segments = path.split("/").filter(Boolean);
+
+	if (segments.length && locales.includes(segments[0] as Locale)) {
+		segments[0] = locale;
+	} else {
+		segments.unshift(locale);
+	}
+
+	// The default locale homepage is served unprefixed at `/`
+	const prefixedPath =
+		segments.length === 1 && segments[0] === locale ? homePath(locale) : `/${segments.join("/")}`;
+
+	return `${prefixedPath}${query ? `?${query}` : ""}${hash}`;
+}
+
+/**
  * Get the path without locale prefix
  */
 export function stripLocale(path: string): string {
