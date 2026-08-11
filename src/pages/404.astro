@@ -2,7 +2,9 @@
 import Base from "../layouts/Base.astro";
 import { getLocaleFromPath, homePath, t } from "../i18n/utils";
 
-const locale = getLocaleFromPath(Astro.url.pathname);
+// `originPathname` is the URL the visitor actually requested — pages rewrite
+// here on a miss, and `Astro.url.pathname` would just be "/404" (losing locale).
+const locale = getLocaleFromPath(Astro.originPathname);
 ---
 
 <Base title={t("notFound.title", locale)} locale={locale}>

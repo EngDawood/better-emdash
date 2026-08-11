@@ -14,7 +14,7 @@ const locale: Locale = locales.includes(localeParam as Locale)
 const term = slug ? await getTerm("tag", slug) : null;
 
 if (!term) {
-	return Astro.redirect(`/${locale}/404`);
+	return Astro.rewrite("/404");
 }
 
 const { entries: posts } = await getEmDashCollection("posts", {

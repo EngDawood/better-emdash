@@ -13,13 +13,13 @@ const locale: Locale = locales.includes(localeParam as Locale)
 	: defaultLocale;
 
 if (!slug) {
-	return Astro.redirect(`/${locale}/404`);
+	return Astro.rewrite("/404");
 }
 
 const { entry: project, cacheHint } = await getEmDashEntry("projects", slug);
 
 if (!project) {
-	return Astro.redirect(`/${locale}/404`);
+	return Astro.rewrite("/404");
 }
 
 try {
