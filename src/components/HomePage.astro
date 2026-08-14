@@ -2,6 +2,7 @@
 import { getEmDashCollection, getEmDashEntry, getSiteSettings } from "emdash";
 import Base from "../layouts/Base.astro";
 import { t, type Locale } from "../i18n/utils";
+import { submitContactForm } from "../utils/contact-form";
 import HeroSection from "./sections/HeroSection.astro";
 import WorkSection from "./sections/WorkSection.astro";
 import WritingSection from "./sections/WritingSection.astro";
@@ -46,35 +47,24 @@ let formStatus: "idle" | "success" | "error" = "idle";
 let formMessage = "";
 
 if (Astro.request.method === "POST") {
-	try {
-		const formData = await Astro.request.formData();
-		const name = formData.get("name")?.toString() || "";
-		const emailVal = formData.get("email")?.toString() || "";
-		const message = formData.get("message")?.toString() || "";
+	const formData = await Astro.request.formData().catch(() => null);
+	const name = formData?.get("name")?.toString() || "";
+	const emailVal = formData?.get("email")?.toString() || "";
+	const message = formData?.get("message")?.toString() || "";
 
-		if (!name || !emailVal || !message) {
-			formStatus = "error";
-			formMessage = t("contact.form.error", locale);
-		} else if (!emailVal.includes("@")) {
-			formStatus = "error";
-			formMessage = t("contact.form.error", locale);
-		} else {
-			const res = await fetch(new URL("/_emdash/api/plugins/emdash-forms/submit", Astro.url), {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					formId: "contact",
-					data: { name, email: emailVal, message },
-				}),
-			});
-			const result = await res.json() as { success: boolean; message?: string };
-			if (!result.success) throw new Error(result.message || "Submission failed");
-			formStatus = "success";
-			formMessage = result.message || t("contact.form.success", locale);
-		}
-	} catch {
+	if (!name || !emailVal || !emailVal.includes("@") || !message) {
 		formStatus = "error";
 		formMessage = t("contact.form.error", locale);
+	} else {
+		const result = await submitContactForm(Astro.url, "contact", {
+			name,
+			email: emailVal,
+			message,
+		});
+		formStatus = result.status;
+		formMessage =
+			result.message ??
+			t(result.status === "success" ? "contact.form.success" : "contact.form.error", locale);
 	}
 }
 ---
