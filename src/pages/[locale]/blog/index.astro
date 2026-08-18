@@ -14,7 +14,9 @@ if (!locales.includes(localeParam as Locale)) {
 	return Astro.redirect(`/${defaultLocale}/blog`, 302);
 }
 
-const { entries: posts, cacheHint } = await getEmDashCollection("posts");
+const { entries: posts, cacheHint } = await getEmDashCollection("posts", {
+	locale,
+});
 
 Astro.cache.set(cacheHint);
 

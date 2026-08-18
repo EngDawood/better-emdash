@@ -1,8 +1,0 @@
-.env
-.env.local
-.dev.vars
-.claude/*
-dist/*
-.mcp.json
-.wrangler/*
-dist/*

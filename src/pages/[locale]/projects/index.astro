@@ -21,7 +21,7 @@ if (!locales.includes(localeParam as Locale)) {
 }
 
 const { entries: projects, cacheHint } =
-	await getEmDashCollection("projects");
+	await getEmDashCollection("projects", { locale });
 const tags = await getTaxonomyTerms("tag");
 
 // Get filter from query param

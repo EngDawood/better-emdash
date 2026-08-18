@@ -19,8 +19,8 @@ const { locale } = Astro.props;
 
 const [settings, { entries: projects, cacheHint }, { entries: posts }, { entry: faqPage, cacheHint: faqCacheHint }] = await Promise.all([
 	getSiteSettings(),
-	getEmDashCollection("projects", { orderBy: { published_at: "desc" }, limit: 3 }),
-	getEmDashCollection("posts", { orderBy: { published_at: "desc" }, limit: 4 }),
+	getEmDashCollection("projects", { locale, orderBy: { published_at: "desc" }, limit: 3 }),
+	getEmDashCollection("posts", { locale, orderBy: { published_at: "desc" }, limit: 4 }),
 	getEmDashEntry("pages", "faq", { locale }),
 ]);
 Astro.cache.set(cacheHint);

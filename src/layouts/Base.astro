@@ -6,7 +6,16 @@ import { createPublicPageContext } from "emdash/page";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import NewsletterSignup from "../components/NewsletterSignup.astro";
-import { getDir, getLocaleFromPath, type Locale, defaultLocale } from "../i18n/utils";
+import {
+	getDir,
+	getLocaleFromPath,
+	getOtherLocale,
+	homePath,
+	locales,
+	type Locale,
+	defaultLocale,
+} from "../i18n/utils";
+import type { Alternate } from "../utils/i18n-content";
 import "../styles/global.css";
 
 interface Props {
@@ -23,6 +32,13 @@ interface Props {
 	content?: { collection: string; id: string; slug?: string | null };
 	/** Current locale */
 	locale?: Locale;
+	/**
+	 * Real locale variants of this page, from the EmDash translation group.
+	 * Content routes must pass this: the locale prefix alone is not a reliable
+	 * alternate URL, because a translation may use a different slug (or may not
+	 * exist at all). When omitted, static routes fall back to path-swapping.
+	 */
+	alternates?: Alternate[] | null;
 }
 
 const {
@@ -37,6 +53,7 @@ const {
 	author,
 	content,
 	locale: localeProp,
+	alternates,
 } = Astro.props;
 
 // Determine locale from prop or URL
@@ -55,13 +72,21 @@ const fullTitle = title ? `${title} — ${siteTitle}` : siteTitle;
 
 const isLoggedIn = !!Astro.locals.user;
 
+// Canonical ignores the query string: tag filters like `/ar/projects?tag=ai`
+// are views of one page, and self-canonicalizing each one turns every filter
+// combination into its own indexable near-duplicate.
+const canonicalUrl = canonical ?? `${Astro.url.origin}${Astro.url.pathname}`;
+
 const pageCtx = createPublicPageContext({
-	Astro,
+	// Astro i18n routing is not configured, so `Astro.currentLocale` is
+	// undefined and the SEO plugin would fall back to the site-wide locale —
+	// which is what stamped `inLanguage: "en"` onto Arabic pages.
+	Astro: { url: Astro.url, currentLocale: locale },
 	kind: content ? "content" : "custom",
 	pageType: type,
 	title: fullTitle,
 	description: description || siteDescription,
-	canonical: canonical ?? Astro.url.href,
+	canonical: canonicalUrl,
 	image,
 	content,
 	seo: { ogImage: image, robots },
@@ -69,14 +94,48 @@ const pageCtx = createPublicPageContext({
 	siteName: siteTitle,
 });
 
-// hreflang: strip locale prefix then build per-locale hrefs.
-// The Arabic homepage is served unprefixed at `/` — `/ar` 301s there.
+// The Arabic homepage is served unprefixed at `/` — `/ar` 301s there. Every
+// other path carries its locale prefix, including the default locale.
+const localePath = (loc: Locale, path: string): string =>
+	path === "/" || path === "" ? homePath(loc) : `/${loc}${path}`;
+
 const pathWithoutLocale = Astro.url.pathname.replace(/^\/(ar|en)/, "") || "/";
-const hrefAr =
-	pathWithoutLocale === "/"
-		? `${Astro.url.origin}/`
-		: `${Astro.url.origin}/ar${pathWithoutLocale}`;
-const hrefEn = `${Astro.url.origin}/en${pathWithoutLocale === "/" ? "" : pathWithoutLocale}`;
+
+// Content routes pass their real translation group; static routes have the same
+// path in both locales, so path-swapping is correct for them.
+const alternateLinks = (
+	alternates ?? locales.map((loc) => ({ locale: loc, path: pathWithoutLocale }))
+).map((alt) => ({
+	locale: alt.locale,
+	href: `${Astro.url.origin}${localePath(alt.locale, alt.path)}`,
+}));
+
+// A single-locale page has no alternates to declare. Emitting a self-only
+// hreflang set (or pointing at a translation that does not exist) makes Google
+// discard the annotation, so only advertise a real cluster.
+const hreflangs =
+	alternateLinks.length > 1
+		? [
+				...alternateLinks,
+				{
+					locale: "x-default",
+					href:
+						alternateLinks.find((a) => a.locale === defaultLocale)?.href ??
+						alternateLinks[0].href,
+				},
+			]
+		: [];
+
+// Language switcher: prefer the sibling's real URL. When a content page has no
+// translation, send visitors to that locale's home instead of a URL that would
+// only redirect back here.
+const otherLocale = getOtherLocale(locale);
+const otherAlternate = alternates?.find((a) => a.locale === otherLocale);
+const switchHref = alternates
+	? otherAlternate
+		? localePath(otherLocale, otherAlternate.path)
+		: homePath(otherLocale)
+	: undefined;
 
 // JSON-LD
 const websiteSchema = {
@@ -91,7 +150,7 @@ const articleSchema =
 				"@context": "https://schema.org",
 				"@type": "BlogPosting",
 				headline: title ?? fullTitle,
-				url: canonical ?? Astro.url.href,
+				url: canonicalUrl,
 				datePublished: publishedTime,
 				dateModified: modifiedTime ?? publishedTime,
 				description: description ?? siteDescription,
@@ -111,9 +170,9 @@ const articleSchema =
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>{fullTitle}</title>
 		<EmDashHead page={pageCtx} />
-		<link rel="alternate" hreflang="ar" href={hrefAr} />
-		<link rel="alternate" hreflang="en" href={hrefEn} />
-		<link rel="alternate" hreflang="x-default" href={hrefAr} />
+		{hreflangs.map((alt) => (
+			<link rel="alternate" hreflang={alt.locale} href={alt.href} />
+		))}
 		<script is:inline type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
 		{articleSchema && <script is:inline type="application/ld+json" set:html={JSON.stringify(articleSchema)} />}
 		<Font cssVariable="--font-playfair" preload />
@@ -162,6 +221,7 @@ const articleSchema =
 			locale={locale}
 			isLoggedIn={isLoggedIn}
 			menu={primaryMenu}
+			switchHref={switchHref}
 		/>
 
 		<main>
