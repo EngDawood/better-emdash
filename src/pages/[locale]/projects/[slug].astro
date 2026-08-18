@@ -3,6 +3,7 @@ import { getEmDashEntry, getEmDashCollection, getEntryTerms } from "emdash";
 import { Image, PortableText } from "emdash/ui";
 import Base from "../../../layouts/Base.astro";
 import CustomBlock from "../../../components/CustomBlock.astro";
+import FontDownloader from "../../../components/FontDownloader.astro";
 import ProjectCard from "../../../components/ProjectCard.astro";
 import { locales, type Locale, defaultLocale, t } from "../../../i18n/utils";
 
@@ -46,6 +47,31 @@ function getImageSrc(img: unknown): string | undefined {
 
 const dateline = [project.data.year, project.data.client].filter(Boolean);
 const coverAlt = project.data.featured_image?.alt;
+
+// A paragraph holding just `{{font-downloader}}` is replaced by the live font
+// panel, so an editor can move it around the body from the EmDash admin.
+const FONT_DOWNLOADER_MARKER = "{{font-downloader}}";
+
+type PortableTextBlock = {
+	_type?: string;
+	children?: Array<{ text?: unknown }>;
+};
+
+function blockText(block: unknown): string {
+	const node = block as PortableTextBlock | null;
+	if (!node || node._type !== "block" || !Array.isArray(node.children)) return "";
+	return node.children
+		.map((child) => (typeof child?.text === "string" ? child.text : ""))
+		.join("")
+		.trim();
+}
+
+const contentBlocks = Array.isArray(project.data.content) ? project.data.content : null;
+const markerIndex = contentBlocks
+	? contentBlocks.findIndex((block) => blockText(block) === FONT_DOWNLOADER_MARKER)
+	: -1;
+const contentBefore = markerIndex >= 0 ? contentBlocks!.slice(0, markerIndex) : project.data.content;
+const contentAfter = markerIndex >= 0 ? contentBlocks!.slice(markerIndex + 1) : null;
 ---
 
 <Base
@@ -154,9 +180,18 @@ const coverAlt = project.data.featured_image?.alt;
 
 				<div class="project-content" dir="auto">
 					<PortableText
-						value={project.data.content}
+						value={contentBefore}
 						components={{ type: { customBlock: CustomBlock } }}
 					/>
+					{markerIndex >= 0 && <FontDownloader locale={locale} />}
+					{
+						contentAfter && (
+							<PortableText
+								value={contentAfter}
+								components={{ type: { customBlock: CustomBlock } }}
+							/>
+						)
+					}
 				</div>
 
 				{

@@ -182,6 +182,26 @@
 		"button": "بحث",
 		"description": "ابحث في مقالات المدونة"
 	},
+	"fontDownload": {
+		"kicker": "تحميل",
+		"title": "خذ الخطوط معك",
+		"family": "العائلة",
+		"format": "الصيغة",
+		"both": "الاثنتان",
+		"weights": "الأوزان",
+		"selected": "تحميل المحدد",
+		"wholeFamily": "العائلة كاملة",
+		"empty": "اختر وزنًا واحدًا على الأقل",
+		"failed": "تعذّر التحميل — أعد المحاولة",
+		"files": "ملفات",
+		"hintWeb": "للويب",
+		"hintDesktop": "لسطح المكتب",
+		"familySans": "ثمانية سانس",
+		"familySerifDisplay": "ثمانية سيريف ديسبلاي",
+		"familySerifText": "ثمانية سيريف تكست",
+		"license": "ترخيص خط ثمانية للاستخدام الشخصي فقط.",
+		"licenseLink": "اقرأ الشروط"
+	},
 	"project": {
 		"viewWork": "عرض المشروع",
 		"viewLive": "الموقع المباشر",

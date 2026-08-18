@@ -182,6 +182,26 @@
 		"button": "Search",
 		"description": "Search blog posts"
 	},
+	"fontDownload": {
+		"kicker": "Download",
+		"title": "Take the fonts with you",
+		"family": "Family",
+		"format": "Format",
+		"both": "Both",
+		"weights": "Weights",
+		"selected": "Download selected",
+		"wholeFamily": "Whole family",
+		"empty": "Pick at least one weight",
+		"failed": "Download failed — try again",
+		"files": "files",
+		"hintWeb": "web",
+		"hintDesktop": "desktop",
+		"familySans": "Thmanyah Sans",
+		"familySerifDisplay": "Thmanyah Serif Display",
+		"familySerifText": "Thmanyah Serif Text",
+		"license": "The Thmanyah font license permits personal use only.",
+		"licenseLink": "Read the terms"
+	},
 	"project": {
 		"viewWork": "View Project",
 		"viewLive": "Live site",
