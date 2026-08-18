@@ -154,3 +154,4 @@ Declared in `package.json` under `pnpm.patchedDependencies`. Applied automatical
 ## Dependency Pinning
 
 The Cloudflare adapter stack has a peer-dependency chain that must stay in sync. See @rules/dep-pinning.md for upgrade rules and failure signatures.
+ 
