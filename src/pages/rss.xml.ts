@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { getEmDashCollection, getSiteSettings } from "emdash";
+import { getSiteSettings } from "emdash";
+import { collectFeedEntries } from "../utils/feed";
 
 export const GET: APIRoute = async ({ site, url }) => {
 	const siteUrl = site?.toString() || url.origin;
@@ -7,35 +8,23 @@ export const GET: APIRoute = async ({ site, url }) => {
 	const siteTitle = settings?.title || "Studio";
 	const siteDescription = settings?.tagline || "Design & Development";
 
-	const [{ entries: projects }, { entries: posts }] = await Promise.all([
-		getEmDashCollection("projects", { orderBy: { published_at: "desc" }, limit: 20 }),
-		getEmDashCollection("posts", { orderBy: { published_at: "desc" }, limit: 20 }),
+	const [projects, posts] = await Promise.all([
+		collectFeedEntries("projects", "/projects", siteUrl, 20),
+		collectFeedEntries("posts", "/blog", siteUrl, 20),
 	]);
 
-	type FeedItem = { pubDate: Date; xml: string };
-
-	const toItem = (entryUrl: string, title: string | undefined, description: string | undefined, publishedAt: Date | null | undefined): FeedItem | null => {
-		if (!publishedAt) return null;
-		return {
-			pubDate: publishedAt,
-			xml: `    <item>
-      <title>${escapeXml(title || "Untitled")}</title>
-      <link>${entryUrl}</link>
-      <guid isPermaLink="true">${entryUrl}</guid>
-      <pubDate>${publishedAt.toUTCString()}</pubDate>
-      <description>${escapeXml(description || "")}</description>
+	const items = [...projects, ...posts]
+		.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime())
+		.map(
+			(entry) => `    <item>
+      <title>${escapeXml(entry.title)}</title>
+      <link>${entry.url}</link>
+      <guid isPermaLink="true">${entry.url}</guid>
+      <pubDate>${entry.pubDate.toUTCString()}</pubDate>
+      <description xml:lang="${entry.locale}">${escapeXml(entry.description)}</description>
     </item>`,
-		};
-	};
-
-	const feedItems: FeedItem[] = [
-		...projects.map((p) => toItem(`${siteUrl}/projects/${p.data.slug || p.id}`, p.data.title, p.data.summary, p.data.publishedAt)),
-		...posts.map((p) => toItem(`${siteUrl}/blog/${p.data.slug || p.id}`, p.data.title, p.data.excerpt, p.data.publishedAt)),
-	]
-		.filter((item): item is FeedItem => item !== null)
-		.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
-
-	const items = feedItems.map((item) => item.xml).join("\n");
+		)
+		.join("\n");
 
 	const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -44,7 +33,8 @@ export const GET: APIRoute = async ({ site, url }) => {
     <description>${escapeXml(siteDescription)}</description>
     <link>${siteUrl}</link>
     <atom:link href="${siteUrl}/rss.xml" rel="self" type="application/rss+xml"/>
-    <language>en-us</language>
+    <!-- Bilingual feed: each item carries its own xml:lang. -->
+    <language>ar</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
 ${items}
   </channel>

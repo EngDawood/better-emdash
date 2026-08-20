@@ -2,7 +2,9 @@
 import { t, type Locale } from "../../i18n/utils";
 
 interface Props {
-	featuredProjects: any[];
+	/** Each project carries the locale it lives in — an untranslated project is
+	 * listed here but links to the locale that actually has it. */
+	featuredProjects: Array<{ entry: any; locale: Locale }>;
 	locale: Locale;
 }
 
@@ -20,11 +22,16 @@ const { featuredProjects, locale } = Astro.props;
 			<h2 class="section-title">{t("projects.heading", locale)}</h2>
 		</div>
 		<div class="project-rows">
-			{featuredProjects.map((project, i) => (
-				<a href={`/${locale}/projects/${project.id}`} class="project-row reveal-item" style={`--delay: ${i}`}>
+			{featuredProjects.map(({ entry: project, locale: entryLocale }, i) => (
+				<a href={`/${entryLocale}/projects/${project.id}`} class="project-row reveal-item" style={`--delay: ${i}`}>
 					<div class="row-meta">
 						<span class="row-num">0{i + 1}</span>
 						<span class="row-year">{project.data.year}</span>
+						{entryLocale !== locale && (
+							<span class="row-lang" lang={entryLocale}>
+								{t(entryLocale === "ar" ? "project.onlyInArabic" : "project.onlyInEnglish", locale)}
+							</span>
+						)}
 					</div>
 					<h3 class="row-title" dir="auto">{project.data.title}</h3>
 					<p class="row-desc" dir="auto">{project.data.summary}</p>
@@ -106,6 +113,16 @@ const { featuredProjects, locale } = Astro.props;
 		font-size: 11px;
 		letter-spacing: 0.1em;
 		color: var(--color-muted);
+	}
+
+	.row-lang {
+		padding: 0.1rem 0.4rem;
+		border: 1px solid var(--color-border);
+		border-radius: 2px;
+		font-size: 10px;
+		letter-spacing: 0.02em;
+		color: var(--color-muted);
+		white-space: nowrap;
 	}
 
 	.row-title {

@@ -1,4 +1,4 @@
-import { getEmDashEntry, getTranslations } from "emdash";
+import { getEmDashCollection, getEmDashEntry, getTranslations } from "emdash";
 import { getOtherLocale, locales, type Locale } from "../i18n/utils";
 
 /** A locale variant of a content entry that actually exists and is published. */
@@ -35,6 +35,64 @@ export async function resolveLocalizedEntry<T extends string>(
 		entry: null,
 		cacheHint: fallback.cacheHint,
 		foundIn: fallback.entry ? other : null,
+	};
+}
+
+/**
+ * Entries to show in a locale's listing.
+ *
+ * Returns everything published in `locale`, plus entries that exist *only* in
+ * the other locale, each tagged with the locale it actually lives in so the
+ * caller links to its one real URL. That keeps an untranslated project visible
+ * to Arabic visitors without minting a second, duplicate URL for it.
+ *
+ * Costs one `getTranslations` call per other-locale entry, so this is for small
+ * collections (projects). The blog has hundreds of rows in both locales and
+ * needs no fallback — use a plain locale-scoped query there.
+ */
+export async function getListingEntries<T extends string>(
+	collection: T,
+	locale: Locale,
+	options?: { limit?: number },
+) {
+	const other = getOtherLocale(locale);
+	const orderBy = { published_at: "desc" } as const;
+
+	const [primary, secondary] = await Promise.all([
+		getEmDashCollection(collection, { locale, orderBy }),
+		getEmDashCollection(collection, { locale: other, orderBy }),
+	]);
+
+	// `T` is generic here, so `data` widens to Record<string, unknown> inside the
+	// body. Callers still get the collection's real type back.
+	const meta = (entry: { data: unknown }) =>
+		entry.data as { id: string; publishedAt?: Date | null };
+
+	const untranslated = (
+		await Promise.all(
+			secondary.entries.map(async (entry) => {
+				const { translations } = await getTranslations(collection, meta(entry).id);
+				const hasSibling = translations.some(
+					(t) => t.locale === locale && t.status === "published",
+				);
+				return hasSibling ? null : { entry, locale: other };
+			}),
+		)
+	).filter((item) => item !== null);
+
+	// Merge, then sort — each query is only sorted within its own locale.
+	const entries = [
+		...primary.entries.map((entry) => ({ entry, locale })),
+		...untranslated,
+	].sort(
+		(a, b) =>
+			(meta(b.entry).publishedAt?.getTime() ?? 0) -
+			(meta(a.entry).publishedAt?.getTime() ?? 0),
+	);
+
+	return {
+		entries: options?.limit ? entries.slice(0, options.limit) : entries,
+		cacheHint: primary.cacheHint,
 	};
 }
 

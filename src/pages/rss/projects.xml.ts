@@ -1,29 +1,24 @@
 import type { APIRoute } from "astro";
-import { getEmDashCollection, getSiteSettings } from "emdash";
+import { getSiteSettings } from "emdash";
+import { collectFeedEntries } from "../../utils/feed";
 
 export const GET: APIRoute = async ({ site, url }) => {
 	const siteUrl = site?.toString() || url.origin;
 	const settings = await getSiteSettings();
 	const siteTitle = settings?.title || "Studio";
 
-	const { entries: projects } = await getEmDashCollection("projects", {
-		orderBy: { published_at: "desc" },
-		limit: 20,
-	});
+	const projects = await collectFeedEntries("projects", "/projects", siteUrl, 20);
 
 	const items = projects
-		.map((p) => {
-			if (!p.data.publishedAt) return null;
-			const entryUrl = `${siteUrl}/projects/${p.data.slug || p.id}`;
-			return `    <item>
-      <title>${escapeXml(p.data.title || "Untitled")}</title>
-      <link>${entryUrl}</link>
-      <guid isPermaLink="true">${entryUrl}</guid>
-      <pubDate>${p.data.publishedAt.toUTCString()}</pubDate>
-      <description>${escapeXml(p.data.summary || "")}</description>
-    </item>`;
-		})
-		.filter(Boolean)
+		.map(
+			(p) => `    <item>
+      <title>${escapeXml(p.title)}</title>
+      <link>${p.url}</link>
+      <guid isPermaLink="true">${p.url}</guid>
+      <pubDate>${p.pubDate.toUTCString()}</pubDate>
+      <description xml:lang="${p.locale}">${escapeXml(p.description)}</description>
+    </item>`,
+		)
 		.join("\n");
 
 	const rss = `<?xml version="1.0" encoding="UTF-8"?>
@@ -31,9 +26,10 @@ export const GET: APIRoute = async ({ site, url }) => {
   <channel>
     <title>${escapeXml(siteTitle)} — Work</title>
     <description>Latest projects from ${escapeXml(siteTitle)}</description>
-    <link>${siteUrl}/projects</link>
+    <link>${siteUrl}/ar/projects</link>
     <atom:link href="${siteUrl}/rss/projects.xml" rel="self" type="application/rss+xml"/>
-    <language>en-us</language>
+    <!-- Bilingual feed: each item carries its own xml:lang. -->
+    <language>ar</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
 ${items}
   </channel>

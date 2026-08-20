@@ -1,11 +1,8 @@
 ---
 export const prerender = false;
 
-import {
-	getEmDashCollection,
-	getTaxonomyTerms,
-	getTermsForEntries,
-} from "emdash";
+import { getTaxonomyTerms, getTermsForEntries } from "emdash";
+import { getListingEntries } from "../../../utils/i18n-content";
 import Base from "../../../layouts/Base.astro";
 import ProjectCard from "../../../components/ProjectCard.astro";
 import { t, locales, type Locale, defaultLocale } from "../../../i18n/utils";
@@ -20,17 +17,19 @@ if (!locales.includes(localeParam as Locale)) {
 	return Astro.redirect(`/${defaultLocale}/projects`, 302);
 }
 
-const { entries: projects, cacheHint } =
-	await getEmDashCollection("projects", { locale });
+// Projects with no translation yet still appear here, linked to the locale that
+// actually has them — visible to every visitor, but only one URL each.
+const { entries: projects, cacheHint } = await getListingEntries("projects", locale);
 const tags = await getTaxonomyTerms("tag");
 
 // Get filter from query param
 const activeTag = Astro.url.searchParams.get("tag");
 
-const projectTagsMap = await getTermsForEntries("projects", projects.map(p => p.data.id), "tag");
-const projectsWithTags = projects.map(project => ({
-	project,
-	projectTags: projectTagsMap.get(project.data.id) ?? [],
+const projectTagsMap = await getTermsForEntries("projects", projects.map(p => p.entry.data.id), "tag");
+const projectsWithTags = projects.map(({ entry, locale: entryLocale }) => ({
+	project: entry,
+	entryLocale,
+	projectTags: projectTagsMap.get(entry.data.id) ?? [],
 }));
 
 // Filter projects if a tag is selected
@@ -96,15 +95,17 @@ Astro.cache.set(cacheHint);
 		sortedProjects.length > 0 ? (
 			<section class="projects">
 				<div class="projects-grid">
-					{sortedProjects.map(({ project, projectTags }) => (
+					{sortedProjects.map(({ project, entryLocale, projectTags }) => (
 						<ProjectCard
 							title={project.data.title ?? "Untitled"}
 							summary={project.data.summary}
 							featuredImage={project.data.featured_image ?? ""}
-							href={`/${locale}/projects/${project.id}`}
+							href={`/${entryLocale}/projects/${project.id}`}
 							client={project.data.client}
 							year={project.data.year}
 							tags={projectTags.map((t) => t.label)}
+							locale={locale}
+							entryLocale={entryLocale}
 						/>
 					))}
 				</div>

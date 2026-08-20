@@ -13,10 +13,19 @@ interface Props {
 	categories?: string[];
 	tags?: string[];
 	locale?: Locale;
+	/** Locale this project is written in, when it differs from the page. */
+	entryLocale?: Locale;
 }
 
-const { title, summary, featuredImage, href, client, year, categories, tags, locale = defaultLocale } =
+const { title, summary, featuredImage, href, client, year, categories, tags, locale = defaultLocale, entryLocale } =
 	Astro.props;
+
+// Flag the language jump before the click: an untranslated project is listed in
+// both languages but opens in the only one it exists in.
+const otherLanguage =
+	entryLocale && entryLocale !== locale
+		? t(entryLocale === "ar" ? "project.onlyInArabic" : "project.onlyInEnglish", locale)
+		: null;
 // Combine categories and tags for display
 const allTags = [...(categories || []), ...(tags || [])];
 ---
@@ -35,6 +44,7 @@ const allTags = [...(categories || []), ...(tags || [])];
 				{client && <span class="card-client">{client}</span>}
 				{client && year && <span class="card-separator">·</span>}
 				{year && <span class="card-year">{year}</span>}
+				{otherLanguage && <span class="card-lang" lang={entryLocale}>{otherLanguage}</span>}
 			</div>
 			{summary && <p class="card-summary">{summary}</p>}
 			{
@@ -138,6 +148,17 @@ const allTags = [...(categories || []), ...(tags || [])];
 
 	.card-separator {
 		margin: 0 var(--spacing-xs, 0.25rem);
+	}
+
+	.card-lang {
+		margin-inline-start: auto;
+		padding: 0.1rem 0.4rem;
+		border: 1px solid var(--color-border, #e5e7eb);
+		border-radius: 2px;
+		font-size: 0.7rem;
+		letter-spacing: 0.02em;
+		color: var(--color-muted, #6b7280);
+		white-space: nowrap;
 	}
 
 	.card-summary {
