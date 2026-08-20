@@ -5,6 +5,11 @@
       "source": "jdevalk/skills",
       "sourceType": "github",
       "computedHash": "c30421e6953cfc2d61b703450064293e685c8c6d19ecdd477d5f3908405a3a7f"
+    },
+    "thmanyah-font-web": {
+      "source": "EngDawood/thmanyah-font-web",
+      "sourceType": "github",
+      "computedHash": "ef07f30f456a748e89f143df67fdede4658c88d74a2d36a823797b5b402abdee"
     }
   }
 }

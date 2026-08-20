@@ -2,35 +2,51 @@ import type { APIRoute } from "astro";
 import { getEmDashCollection, getSiteSettings } from "emdash";
 import { buildLlmsTxt, type LlmsTxtEntry } from "../plugins/seo/llms";
 
-// Canonical llms.txt lists default-locale (ar) URLs. Spec: https://llmstxt.org/
-const LOCALE = "ar";
+// One llms.txt covers the whole site. Spec: https://llmstxt.org/
+const LOCALES = ["ar", "en"] as const;
+
+const SECTIONS = [
+	{ type: "posts", label: "Writing", basePath: "/blog" },
+	{ type: "projects", label: "Work", basePath: "/projects" },
+	{ type: "pages", label: "Pages", basePath: "/pages" },
+] as const;
 
 export const GET: APIRoute = async ({ url }) => {
-	const base = `${url.origin}/${LOCALE}`;
-
-	const [settingsR, postsR, projectsR, pagesR] = await Promise.allSettled([
+	// Query per locale and prefix each entry with the locale it actually lives
+	// in. A single unscoped query returns both locales' rows, and listing them
+	// all under /ar/ pointed crawlers at URLs that redirect (or, before the
+	// locale-scoped routes landed, served the wrong language).
+	const [settingsR, ...collectionResults] = await Promise.allSettled([
 		getSiteSettings(),
-		getEmDashCollection("posts", { orderBy: { published_at: "desc" } }),
-		getEmDashCollection("projects", { orderBy: { published_at: "desc" } }),
-		getEmDashCollection("pages"),
+		...LOCALES.flatMap((locale) =>
+			SECTIONS.map(async (section) => {
+				const { entries } = await getEmDashCollection(section.type, {
+					locale,
+					orderBy: { published_at: "desc" },
+				});
+				return { locale, section, entries };
+			}),
+		),
 	]);
 
 	const settings = settingsR.status === "fulfilled" ? settingsR.value : null;
-	const posts = postsR.status === "fulfilled" ? postsR.value.entries : [];
-	const projects = projectsR.status === "fulfilled" ? projectsR.value.entries : [];
-	const pages = pagesR.status === "fulfilled" ? pagesR.value.entries : [];
 
-	const entry = (title: string, path: string, description?: string): LlmsTxtEntry => ({
-		title: title || path,
-		url: `${base}${path}`,
-		description: description || undefined,
-	});
+	const sections: Record<string, LlmsTxtEntry[]> = {};
+	for (const result of collectionResults) {
+		if (result.status !== "fulfilled") continue;
+		const { locale, section, entries } = result.value;
 
-	const sections: Record<string, LlmsTxtEntry[]> = {
-		Writing: posts.map((p) => entry(p.data.title, `/blog/${p.data.slug || p.id}`, p.data.excerpt)),
-		Work: projects.map((p) => entry(p.data.title, `/projects/${p.data.slug || p.id}`, p.data.summary)),
-		Pages: pages.map((p) => entry(p.data.title, `/pages/${p.data.slug || p.id}`)),
-	};
+		const list = (sections[section.label] ??= []);
+		for (const item of entries) {
+			const slug = item.data.slug || item.id;
+			const description = item.data.excerpt ?? item.data.summary;
+			list.push({
+				title: item.data.title || slug,
+				url: `${url.origin}/${locale}${section.basePath}/${slug}`,
+				description: description || undefined,
+			});
+		}
+	}
 
 	const body = buildLlmsTxt({
 		siteName: settings?.title || "Dawood Saleh",

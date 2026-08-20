@@ -1,5 +1,6 @@
 ---
 import { getEmDashCollection, getEmDashEntry, getSiteSettings } from "emdash";
+import { getListingEntries } from "../utils/i18n-content";
 import Base from "../layouts/Base.astro";
 import { t, type Locale } from "../i18n/utils";
 import { submitContactForm } from "../utils/contact-form";
@@ -19,8 +20,8 @@ const { locale } = Astro.props;
 
 const [settings, { entries: projects, cacheHint }, { entries: posts }, { entry: faqPage, cacheHint: faqCacheHint }] = await Promise.all([
 	getSiteSettings(),
-	getEmDashCollection("projects", { orderBy: { published_at: "desc" }, limit: 3 }),
-	getEmDashCollection("posts", { orderBy: { published_at: "desc" }, limit: 4 }),
+	getListingEntries("projects", locale, { limit: 3 }),
+	getEmDashCollection("posts", { locale, orderBy: { published_at: "desc" }, limit: 4 }),
 	getEmDashEntry("pages", "faq", { locale }),
 ]);
 Astro.cache.set(cacheHint);

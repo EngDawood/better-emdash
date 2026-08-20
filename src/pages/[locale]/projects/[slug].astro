@@ -1,5 +1,9 @@
 ---
-import { getEmDashEntry, getEmDashCollection, getEntryTerms } from "emdash";
+import { getEmDashCollection, getEntryTerms } from "emdash";
+import {
+	getContentAlternates,
+	resolveLocalizedEntry,
+} from "../../../utils/i18n-content";
 import { Image, PortableText } from "emdash/ui";
 import Base from "../../../layouts/Base.astro";
 import CustomBlock from "../../../components/CustomBlock.astro";
@@ -17,9 +21,18 @@ if (!slug) {
 	return Astro.rewrite("/404");
 }
 
-const { entry: project, cacheHint } = await getEmDashEntry("projects", slug);
+const {
+	entry: project,
+	cacheHint,
+	foundIn,
+} = await resolveLocalizedEntry("projects", slug, locale);
 
 if (!project) {
+	// Untranslated project: point at the locale that has it rather than 404ing
+	// a URL Google may already have indexed.
+	if (foundIn) {
+		return Astro.redirect(`/${foundIn}/projects/${slug}`, 301);
+	}
 	return Astro.rewrite("/404");
 }
 
@@ -27,9 +40,10 @@ try {
 	Astro.cache.set(cacheHint);
 } catch {}
 
-const [{ entries: allProjects }, stack] = await Promise.all([
-	getEmDashCollection("projects"),
+const [{ entries: allProjects }, stack, alternates] = await Promise.all([
+	getEmDashCollection("projects", { locale }),
 	getEntryTerms("projects", project.data.id, "tag"),
+	getContentAlternates("projects", project.data.id, (s) => `/projects/${s}`),
 ]);
 const otherProjects = allProjects.filter((p) => p.id !== project.id).slice(0, 3);
 
@@ -78,6 +92,7 @@ const contentAfter = markerIndex >= 0 ? contentBlocks!.slice(markerIndex + 1) : 
 	title={project.data.title}
 	description={project.data.summary}
 	image={getImageSrc(project.data.featured_image)}
+	alternates={alternates}
 	locale={locale}
 >
 	<article class="project">

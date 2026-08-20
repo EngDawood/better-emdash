@@ -213,7 +213,9 @@
 		"ctaText": "Want something like this for your team? I usually ship a first version within two weeks.",
 		"ctaButton": "Get in touch",
 		"noProjects": "No projects found.",
-		"viewAll": "View all projects"
+		"viewAll": "View all projects",
+		"onlyInArabic": "Arabic only",
+		"onlyInEnglish": "English only"
 	},
 	"archive": {
 		"category": "Category",

@@ -4,13 +4,20 @@ import { getOtherLocale, stripLocale, homePath, type Locale } from "../i18n/util
 interface Props {
 	locale: Locale;
 	class?: string;
+	/**
+	 * Explicit target for the other locale. Content pages pass this because a
+	 * translation can live at a different slug — swapping the prefix would point
+	 * at a URL that does not exist.
+	 */
+	href?: string;
 }
 
-const { locale, class: className } = Astro.props;
+const { locale, class: className, href } = Astro.props;
 const otherLocale = getOtherLocale(locale);
 const currentPath = stripLocale(Astro.url.pathname);
 const switchUrl =
-	currentPath === "/" ? homePath(otherLocale) : `/${otherLocale}${currentPath}`;
+	href ??
+	(currentPath === "/" ? homePath(otherLocale) : `/${otherLocale}${currentPath}`);
 const label = locale === "ar" ? "EN" : "عربي";
 ---
 

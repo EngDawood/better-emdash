@@ -43,6 +43,26 @@ const jobsBoardAdminEntry = fileURLToPath(
 
 
 export default defineConfig({
+	// EmDash reads this block for its locale list and default locale. Without it
+	// EmDash runs as a single-language CMS: no locale column, no locale filter,
+	// and no Translations panel in the editor.
+	//
+	// Deliberately no `fallback` — EmDash reads the same key for its *content*
+	// fallback chain, which would serve one entry under both locale URLs and
+	// recreate the duplicate-content problem the locale-scoped queries fixed.
+	//
+	// Never set `prefixDefaultLocale: true` / `routing: "prefix-always"`: every
+	// injected page route then requires a locale prefix and /_emdash/admin 404s
+	// (emdash-cms/emdash#369). Astro's default prefix-other-locales is required.
+	// `routing: "manual"` disables Astro's built-in locale middleware. This site
+	// routes locales itself via src/pages/[locale]/**, and Astro's automatic
+	// prefix-other-locales handling 404s the default locale's own prefix
+	// (/ar/blog), which every internal link and the sitemap depend on.
+	i18n: {
+		defaultLocale: "ar",
+		locales: ["ar", "en"],
+		routing: "manual",
+	},
 	output: "server",
 	adapter: cloudflare({
 		remoteBindings: false,
