@@ -1,5 +1,8 @@
 ---
 // Redirect /[locale]/posts/[slug] → /[locale]/blog/[slug]
+// Keep the query string: draft previews arrive here as /{locale}/posts/{id}
+// (the collection-based EMDASH_PREVIEW_PATH_PATTERN) and dropping `?_preview=`
+// would strip the token before the article route can serve the draft.
 const { locale, slug } = Astro.params;
-return Astro.redirect(`/${locale}/blog/${slug}`, 301);
+return Astro.redirect(`/${locale}/blog/${slug}${Astro.url.search}`, 301);
 ---

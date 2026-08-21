@@ -38,12 +38,19 @@ export const GET: APIRoute = async ({ url }) => {
 
 		const list = (sections[section.label] ??= []);
 		for (const item of entries) {
-			const slug = item.data.slug || item.id;
-			const description = item.data.excerpt ?? item.data.summary;
+			// Entries here span three collections, so `data` is a union: posts carry
+			// `excerpt`, projects carry `summary`, pages carry neither.
+			const data = item.data as {
+				slug?: string | null;
+				title?: string;
+				excerpt?: string;
+				summary?: string;
+			};
+			const slug = data.slug || item.id;
 			list.push({
-				title: item.data.title || slug,
+				title: data.title || slug,
 				url: `${url.origin}/${locale}${section.basePath}/${slug}`,
-				description: description || undefined,
+				description: data.excerpt ?? data.summary ?? undefined,
 			});
 		}
 	}
