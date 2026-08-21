@@ -29,9 +29,10 @@ const {
 
 if (!project) {
 	// Untranslated project: point at the locale that has it rather than 404ing
-	// a URL Google may already have indexed.
+	// a URL Google may already have indexed. Carry the query string over so a
+	// draft preview arriving under the wrong locale keeps its `_preview` token.
 	if (foundIn) {
-		return Astro.redirect(`/${foundIn}/projects/${slug}`, 301);
+		return Astro.redirect(`/${foundIn}/projects/${slug}${Astro.url.search}`, 301);
 	}
 	return Astro.rewrite("/404");
 }
