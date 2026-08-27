@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "agent-browser": {
+      "source": "EngDawood/emdash-claude-plugin",
+      "sourceType": "github",
+      "computedHash": "62907151974dcbc89936a65f809155c4399374d181c722317550d7352377781f"
+    },
     "emdash-github-actions": {
       "source": "jdevalk/skills",
       "sourceType": "github",
