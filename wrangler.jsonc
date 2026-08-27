@@ -65,7 +65,11 @@
 		{ "tag": "v1", "new_sqlite_classes": ["EmDashMCP"] } 
 	],
 	"services": [
-		{ "binding": "SELF", "service": "dawood-emdash" }
+		{ "binding": "SELF", "service": "dawood-emdash" },
+		// Resolves pasted post URLs into direct media links for the media
+		// picker's "From URL" tab. Optional: when the binding is unavailable
+		// (as in local dev) the provider falls back to https://dl.engdawood.com.
+		{ "binding": "MEDIA_DL", "service": "download-media-bot" }
 	],
 	"worker_loaders": [
 		{

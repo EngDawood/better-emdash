@@ -41,6 +41,10 @@ const jobsBoardAdminEntry = fileURLToPath(
 	new URL("./src/plugins/jobs-board/admin.tsx", import.meta.url),
 ).replaceAll("\\", "/");
 
+const mediaFromUrlEntrypoint = fileURLToPath(
+	new URL("./src/plugins/media-from-url/runtime.ts", import.meta.url),
+).replaceAll("\\", "/");
+
 
 export default defineConfig({
 	// EmDash reads this block for its locale list and default locale. Without it
@@ -84,6 +88,33 @@ export default defineConfig({
 			mcp:true ,
 			database: d1({ binding: "DB", session: "auto" }),
 			storage: r2({ binding: "MEDIA" }),
+			// Adds a "From URL" tab to the media picker that downloads what you
+			// paste into R2 and the media library, instead of hotlinking it the way
+			// EmDash's built-in "Insert from URL" box does. Post URLs are resolved
+			// to real media links by the download-media Worker (MEDIA_DL binding,
+			// falling back to plain HTTPS when the binding is absent, e.g. in dev).
+			// The built-in "local" provider is added automatically — do not list it.
+			mediaProviders: [
+				{
+					id: "from-url",
+					name: "From URL",
+					icon: "⬇️",
+					entrypoint: mediaFromUrlEntrypoint,
+					capabilities: { browse: false, search: true, upload: false, delete: false },
+					config: {},
+				},
+				// Same runtime in reference mode — the picker has no per-insert
+				// checkbox to offer (a media provider cannot contribute UI), so the
+				// save-or-link choice is surfaced as a second tab instead.
+				{
+					id: "from-url-link",
+					name: "Link only",
+					icon: "🔗",
+					entrypoint: mediaFromUrlEntrypoint,
+					capabilities: { browse: false, search: true, upload: false, delete: false },
+					config: { linkOnly: true },
+				},
+			],
 			plugins: [
 				{
 					id: "marketing-blocks",
