@@ -180,13 +180,24 @@ export function generateOpengraph(
   }
 
   // Twitter site handle from settings
-  const twitterUrl = settings.socials.find(
-    (s) => s.includes("twitter.com/") || s.includes("x.com/"),
-  );
+  const allowedTwitterHosts = new Set(["twitter.com", "www.twitter.com", "x.com", "www.x.com"]);
+  const twitterUrl = settings.socials.find((s) => {
+    try {
+      const u = new URL(s);
+      return allowedTwitterHosts.has(u.hostname.toLowerCase());
+    } catch {
+      return false;
+    }
+  });
   if (twitterUrl) {
-    const handle = twitterUrl.split("/").pop();
-    if (handle) {
-      contributions.push({ kind: "meta", name: "twitter:site", content: `@${handle}` });
+    try {
+      const u = new URL(twitterUrl);
+      const handle = u.pathname.split("/").filter(Boolean)[0];
+      if (handle) {
+        contributions.push({ kind: "meta", name: "twitter:site", content: `@${handle}` });
+      }
+    } catch {
+      // Ignore invalid URL entries in socials
     }
   }
 
